@@ -4,6 +4,7 @@ import flet as ft
 import httpx2 as httpx
 
 from api import append_to_google_sheet, fetch_match
+from storage import load_pending_matches, save_pending_matches
 
 
 AUTO_STARTING = ["Left", "Right", "Center"]
@@ -120,12 +121,14 @@ def alliance_card(title: str, teams: list[str], bg: str, accent: str) -> ft.Cont
 
 
 def build_scouting_view(page: ft.Page) -> ft.Control:
-    """Build the complete form; demo submissions remain in this app session."""
+    """Build match scouting with persistent offline upload support."""
+    preferences = ft.SharedPreferences()
     state = {
         "teams_found": False,
         "predictions_ok": False,
         "red_prediction": None,
         "blue_prediction": None,
+        "syncing_queue": False,
     }
     # Match identification and alliance selection.
     event_key = styled_field("Event key", value="2026mibg", hint_text="Example: 2026mibg")
@@ -302,14 +305,22 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     # Upload feedback and optional score-accuracy view.
     upload_button = ft.Button(content="Save Match Scouting")
     upload_status = ft.Text(visible=False)
+    pending_upload_button = ft.OutlinedButton(content="Upload saved matches")
+    pending_upload_status = ft.Text(
+        "Offline matches are kept on this device until they can be uploaded.", color=MUTED
+    )
     real_red = styled_field("Actual red score", value="0", keyboard_type=ft.KeyboardType.NUMBER)
     real_blue = styled_field("Actual blue score", value="0", keyboard_type=ft.KeyboardType.NUMBER)
+    red_prediction_detail = ft.Text("Predicted score: —", color=MUTED)
+    blue_prediction_detail = ft.Text("Predicted score: —", color=MUTED)
     red_accuracy_value = ft.Text("—", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_800)
     blue_accuracy_value = ft.Text("—", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_800)
     average_accuracy_value = ft.Text("—", size=28, weight=ft.FontWeight.BOLD, color=INK)
     result_hint = ft.Text("Enter both actual scores to calculate accuracy.", color=MUTED)
 
-    def accuracy_card(title: str, value: ft.Text, color: str, background: str) -> ft.Container:
+    def accuracy_card(
+        title: str, prediction: ft.Text, value: ft.Text, color: str, background: str
+    ) -> ft.Container:
         return ft.Container(
             expand=True,
             padding=14,
@@ -320,6 +331,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 controls=[
                     ft.Text(title, color=color, weight=ft.FontWeight.W_600, text_align=ft.TextAlign.CENTER),
+                    prediction,
                     value,
                 ],
             ),
@@ -341,8 +353,14 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
                 spacing=10,
                 vertical_alignment=ft.CrossAxisAlignment.STRETCH,
                 controls=[
-                    accuracy_card("Red prediction", red_accuracy_value, ft.Colors.RED_800, ft.Colors.RED_50),
-                    accuracy_card("Blue prediction", blue_accuracy_value, ft.Colors.BLUE_800, ft.Colors.BLUE_50),
+                    accuracy_card(
+                        "Red prediction accuracy", red_prediction_detail,
+                        red_accuracy_value, ft.Colors.RED_800, ft.Colors.RED_50,
+                    ),
+                    accuracy_card(
+                        "Blue prediction accuracy", blue_prediction_detail,
+                        blue_accuracy_value, ft.Colors.BLUE_800, ft.Colors.BLUE_50,
+                    ),
                 ],
             ),
             ft.Container(
@@ -386,7 +404,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     scouting_form = ft.Column(
         visible=False,
         spacing=14,
-        controls=[auto_card, tele_card, endgame_card, upload_button, upload_status, result_box],
+        controls=[auto_card, tele_card, endgame_card, upload_button, upload_status],
     )
 
     # Page content: straightforward flow from match details to team scouting form.
@@ -410,13 +428,21 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
                 "Match details",
                 [event_key, scouter_name, match_number, switch_tile(predictions_toggle), prediction_notice],
             ),
+            section(
+                "Saved match uploads",
+                [
+                    ft.Text("Match records that cannot upload are saved on this device."),
+                    pending_upload_button,
+                    pending_upload_status,
+                ],
+            ),
             find_button,
             match_status,
             alliance_row,
             prediction_box,
             team_picker_row,
+            result_box,
             scouting_form,
-            ft.Container(height=28),  # Small bottom buffer after the last form control.
         ],
     )
 
@@ -445,7 +471,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     def refresh_form():
         scouting_form.visible = bool(team_picker.value) and state["predictions_ok"]
         result_box.visible = bool(
-            scouting_form.visible
+            state["teams_found"]
             and predictions_toggle.value
             and state["red_prediction"] is not None
             and state["blue_prediction"] is not None
@@ -472,6 +498,84 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             result_hint.value = "Enter both actual scores to calculate accuracy."
         page.update()
 
+    def set_pending_status(message: str, count: int | None = None):
+        """Keep the queued-row count and its upload feedback visible."""
+        if count is not None:
+            pending_upload_button.content = (
+                f"Upload saved matches ({count})" if count else "Upload saved matches"
+            )
+        pending_upload_status.value = message
+        pending_upload_status.visible = True
+        page.update()
+
+    async def sync_pending_queue() -> int:
+        """Upload queued rows in order, removing each only after Sheets confirms it."""
+        if state["syncing_queue"]:
+            raise RuntimeError("A saved-match upload is already in progress.")
+        state["syncing_queue"] = True
+        try:
+            rows = await load_pending_matches(preferences)
+            uploaded = 0
+            while rows:
+                await append_to_google_sheet(rows[0])
+                rows.pop(0)
+                await save_pending_matches(preferences, rows)
+                uploaded += 1
+            return uploaded
+        finally:
+            state["syncing_queue"] = False
+
+    async def retry_saved_matches():
+        """Let a scout manually upload every row saved during an outage."""
+        pending_upload_button.disabled = True
+        pending_upload_status.value = "Checking saved matches…"
+        page.update()
+        try:
+            uploaded = await sync_pending_queue()
+            remaining = await load_pending_matches(preferences)
+            if uploaded:
+                message = f"Uploaded {uploaded} saved match{'es' if uploaded != 1 else ''}."
+            else:
+                message = "There are no saved matches waiting to upload."
+            set_pending_status(message, len(remaining))
+        except Exception as error:
+            try:
+                remaining_count = len(await load_pending_matches(preferences))
+                message = (
+                    f"Upload failed; {remaining_count} match(es) remain saved on this device. "
+                    f"Try again when connected. {error}"
+                )
+            except Exception as storage_error:
+                remaining_count = None
+                message = f"Could not access the local saved-match queue: {storage_error}"
+            set_pending_status(message, remaining_count)
+        finally:
+            pending_upload_button.disabled = False
+            page.update()
+
+    async def try_auto_upload_pending():
+        """Retry older offline rows when a successful match lookup suggests connectivity."""
+        try:
+            pending = await load_pending_matches(preferences)
+            if not pending:
+                set_pending_status("No offline matches are waiting to upload.", 0)
+                return
+            uploaded = await sync_pending_queue()
+            remaining = await load_pending_matches(preferences)
+            if remaining:
+                message = f"{len(remaining)} match(es) remain saved locally; retry when online."
+            else:
+                message = f"Automatically uploaded {uploaded} saved match(es)."
+            set_pending_status(message, len(remaining))
+        except Exception as error:
+            try:
+                count = len(await load_pending_matches(preferences))
+            except Exception:
+                count = None
+            set_pending_status(
+                f"Saved matches are still queued for upload. {error}", count
+            )
+
     # Fetch the selected qualification match and populate its alliance cards.
     async def find_teams():
         key, qual = (event_key.value or "").strip(), number(match_number.value)
@@ -483,6 +587,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             return
 
         find_button.disabled = True
+        result_box.visible = False
         match_status.value = "Loading alliance teams…"
         match_status.color = MUTED
         match_status.visible = True
@@ -499,6 +604,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             real_red.value = real_blue.value = "0"
             red_accuracy_value.value = blue_accuracy_value.value = "—"
             average_accuracy_value.value = "—"
+            red_prediction_detail.value = blue_prediction_detail.value = "Predicted score: —"
             team_picker.value = None
             team_picker.options = [ft.DropdownOption(text=team) for team in all_teams]
             alliance_row.controls = [
@@ -512,6 +618,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             scouting_form.visible = False
             match_status.value = f"Teams loaded · {key.upper()} · Qual {qual}"
             match_status.color = ft.Colors.GREEN_800
+            await try_auto_upload_pending()
         except ValueError as error:
             state["teams_found"] = False
             match_status.value = str(error)
@@ -530,11 +637,14 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         red, blue = number(red_prediction.value), number(blue_prediction.value)
         if red > 0 and blue > 0:
             state["red_prediction"], state["blue_prediction"] = red, blue
+            red_prediction_detail.value = f"Predicted score: {red}"
+            blue_prediction_detail.value = f"Predicted score: {blue}"
             state["predictions_ok"] = True
-            prediction_status.value = "Predictions saved. You can start scouting."
+            prediction_status.value = "Predictions saved. Enter the final scores below when available."
             prediction_status.color = ft.Colors.GREEN_800
         else:
             state["red_prediction"] = state["blue_prediction"] = None
+            red_prediction_detail.value = blue_prediction_detail.value = "Predicted score: —"
             state["predictions_ok"] = False
             prediction_status.value = "Both predicted scores must be at least 1."
             prediction_status.color = RED
@@ -547,6 +657,12 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
 
     # Save the observation row to the configured Google Sheet.
     async def save_match():
+        if state["syncing_queue"]:
+            upload_status.value = "Wait for the saved-match upload to finish, then try again."
+            upload_status.color = MUTED
+            upload_status.visible = True
+            page.update()
+            return
         if not team_picker.value:
             upload_status.value = "Select a team before saving."
             upload_status.color = RED
@@ -604,23 +720,50 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             if broke.value else "N/A",
             "notes": extra_notes.value.strip() or "N/A",
         }
+        values = list(row.values())
         upload_button.disabled = True
+        pending_upload_button.disabled = True
         upload_status.value = "Sending match data to Google Sheets…"
         upload_status.color = MUTED
         upload_status.visible = True
         page.update()
         try:
-            await append_to_google_sheet(list(row.values()))
+            # Send any older offline records first, preserving their original order.
+            await sync_pending_queue()
+            await append_to_google_sheet(values)
+            pending_count = len(await load_pending_matches(preferences))
             upload_status.value = "Match scouting saved to Google Sheets."
             upload_status.color = ft.Colors.GREEN_800
-            result_box.visible = bool(
-                predictions_toggle.value and state["red_prediction"] and state["blue_prediction"]
+            set_pending_status(
+                "No offline matches are waiting to upload." if not pending_count
+                else f"{pending_count} match(es) are still queued.",
+                pending_count,
             )
-        except (ValueError, httpx.HTTPError, ImportError) as error:
-            upload_status.value = f"Could not save the match: {error}"
-            upload_status.color = RED
+        except Exception as upload_error:
+            # Keep the just-finished observation for an explicit later retry.
+            try:
+                queued_rows = await load_pending_matches(preferences)
+                queued_rows.append(values)
+                await save_pending_matches(preferences, queued_rows)
+                pending_count = len(queued_rows)
+                upload_status.value = (
+                    f"Google Sheets upload failed. This match is saved on this device; "
+                    f"{pending_count} match(es) are waiting. {upload_error}"
+                )
+                upload_status.color = ft.Colors.AMBER_900
+                set_pending_status(
+                    f"{pending_count} match(es) saved locally. Upload them when connected.",
+                    pending_count,
+                )
+            except Exception as storage_error:
+                upload_status.value = (
+                    "Upload failed, and this device could not save the match locally. "
+                    f"Keep this screen open and do not discard the form. {storage_error}"
+                )
+                upload_status.color = RED
         finally:
             upload_button.disabled = False
+            pending_upload_button.disabled = False
             upload_status.visible = True
             page.update()
 
@@ -641,11 +784,14 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     # Turning predictions off immediately makes team selection available again.
     def toggle_predictions(e):
         prediction_box.visible = state["teams_found"] and predictions_toggle.value
+        state["red_prediction"] = state["blue_prediction"] = None
+        red_prediction_detail.value = blue_prediction_detail.value = "Predicted score: —"
+        red_accuracy_value.value = blue_accuracy_value.value = "—"
+        average_accuracy_value.value = "—"
         if predictions_toggle.value:
             state["predictions_ok"] = False
         else:
             state["predictions_ok"] = True
-            state["red_prediction"] = state["blue_prediction"] = None
         refresh_form()
 
     # Connect conditional controls and keep the accuracy readout live.
@@ -656,6 +802,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     find_button.on_click = find_teams
     submit_prediction_button.on_click = save_predictions
     upload_button.on_click = save_match
+    pending_upload_button.on_click = retry_saved_matches
     subtract_pass_button.on_click = decrement_passes
     add_pass_button.on_click = increment_passes
     predictions_toggle.on_change = toggle_predictions
