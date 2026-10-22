@@ -1,0 +1,682 @@
+"""Match scouting screen with live match lookup and Google Sheets submission."""
+
+import flet as ft
+import httpx2 as httpx
+
+from api import append_to_google_sheet, fetch_match
+
+
+AUTO_STARTING = ["Left", "Right", "Center"]
+SHOOTER_TYPES = ["Single Dumper", "Multi-Wide Dumper", "Single Turret", "Dual Turret"]
+HOPPER_SIZES = ["Small (<30)", "Medium (31-60)", "Large (>61)"]
+RATINGS = ["Extremely Slow", "Below Average", "Average", "Above Average", "Super Fast"]
+RED = ft.Colors.RED_800
+INK = ft.Colors.GREY_900
+MUTED = ft.Colors.GREY_700
+
+
+def styled_field(label: str, **kwargs) -> ft.TextField:
+    """Create a consistent, roomy text input for the scouting form."""
+    return ft.TextField(
+        label=label,
+        filled=True,
+        fill_color=ft.Colors.WHITE,
+        focused_bgcolor=ft.Colors.WHITE,
+        border={
+            ft.ControlState.DEFAULT: ft.OutlineInputBorder(
+                side=ft.BorderSide(color=ft.Colors.GREY_400),
+                border_radius=ft.BorderRadius.all(12),
+            ),
+            ft.ControlState.FOCUSED: ft.OutlineInputBorder(
+                side=ft.BorderSide(color=RED, width=2),
+                border_radius=ft.BorderRadius.all(12),
+            ),
+        },
+        content_padding=ft.Padding.symmetric(horizontal=14, vertical=12),
+        cursor_color=RED,
+        **kwargs,
+    )
+
+
+def styled_dropdown(label: str, options: list[ft.DropdownOption], **kwargs) -> ft.Dropdown:
+    """Match dropdown borders and padding to the rounded text inputs."""
+    return ft.Dropdown(
+        label=label,
+        options=options,
+        filled=True,
+        fill_color=ft.Colors.WHITE,
+        text_size=16,
+        content_padding=ft.Padding.symmetric(horizontal=14, vertical=12),
+        border={
+            ft.ControlState.DEFAULT: ft.OutlineInputBorder(
+                side=ft.BorderSide(color=ft.Colors.GREY_400),
+                border_radius=ft.BorderRadius.all(12),
+            ),
+            ft.ControlState.FOCUSED: ft.OutlineInputBorder(
+                side=ft.BorderSide(color=RED, width=2),
+                border_radius=ft.BorderRadius.all(12),
+            ),
+        },
+        **kwargs,
+    )
+
+
+def styled_switch(label: str, value: bool = False) -> ft.Switch:
+    """Use a consistent red active state on all yes/no questions."""
+    return ft.Switch(
+        label=label,
+        value=value,
+        active_color=RED,
+        active_track_color=ft.Colors.RED_200,
+        inactive_track_color=ft.Colors.GREY_300,
+    )
+
+
+def switch_tile(control: ft.Switch) -> ft.Container:
+    """Place a toggle on a soft grey tile so questions are easy to spot and tap."""
+    return ft.Container(
+        padding=ft.Padding.symmetric(horizontal=12, vertical=5),
+        bgcolor=ft.Colors.GREY_100,
+        border=ft.Border.all(1, ft.Colors.GREY_200),
+        border_radius=12,
+        content=control,
+    )
+
+
+def section(title: str, controls: list[ft.Control]) -> ft.Container:
+    """Give each part of the long form a clear, welcoming card."""
+    return ft.Container(
+        padding=18,
+        bgcolor=ft.Colors.WHITE,
+        border=ft.Border.all(1, ft.Colors.GREY_300),
+        border_radius=16,
+        content=ft.Column(
+            spacing=12,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+            controls=[
+                ft.Text(title, size=21, weight=ft.FontWeight.BOLD, color=RED),
+                *controls,
+            ],
+        ),
+    )
+
+
+def alliance_card(title: str, teams: list[str], bg: str, accent: str) -> ft.Control:
+    """Show preset alliance members in their traditional red/blue colors."""
+    return ft.Container(
+        expand=True,
+        padding=16,
+        bgcolor=bg,
+        border=ft.Border.all(2, accent),
+        border_radius=14,
+        content=ft.Column(
+            spacing=5,
+            controls=[
+                ft.Text(title, color=accent, weight=ft.FontWeight.BOLD, size=15),
+                *(ft.Text(team, color=accent, weight=ft.FontWeight.BOLD, size=20) for team in teams),
+            ],
+        ),
+    )
+
+
+def build_scouting_view(page: ft.Page) -> ft.Control:
+    """Build the complete form; demo submissions remain in this app session."""
+    state = {
+        "teams_found": False,
+        "predictions_ok": False,
+        "red_prediction": None,
+        "blue_prediction": None,
+    }
+    # Match identification and alliance selection.
+    event_key = styled_field("Event key", value="2026mibg", hint_text="Example: 2026mibg")
+    scouter_name = styled_field("Scouter name", hint_text="Your name")
+    match_number = styled_field(
+        "Qualification match number", value="1", keyboard_type=ft.KeyboardType.NUMBER
+    )
+    match_status = ft.Text(visible=False, color=RED)
+    find_button = ft.Button(content="Find Teams")
+    alliance_row = ft.Row(visible=False, spacing=12)
+    team_picker = styled_dropdown(
+        label="Select the team you are scouting",
+        options=[],
+        visible=False,
+        height=64,
+    )
+    # Keep the team picker aligned with the left edge of the scouting form.
+    team_picker_row = ft.Column(visible=False, controls=[team_picker])
+
+    # Optional prediction inputs and match result score fields.
+    predictions_toggle = styled_switch("Enter optional score predictions")
+    prediction_notice = ft.Text(
+        "Predictions are just for fun. Enter both scores to unlock scouting when this is on.",
+        color=MUTED,
+    )
+    red_prediction = styled_field("Red predicted score", value="0", keyboard_type=ft.KeyboardType.NUMBER)
+    blue_prediction = styled_field("Blue predicted score", value="0", keyboard_type=ft.KeyboardType.NUMBER)
+    prediction_status = ft.Text()
+    submit_prediction_button = ft.Button(content="Save Predictions")
+    prediction_box = ft.Column(
+        visible=False,
+        controls=[
+            ft.Row(
+                controls=[
+                    ft.Column(expand=1, controls=[red_prediction]),
+                    ft.Column(expand=1, controls=[blue_prediction]),
+                ]
+            ),
+            submit_prediction_button,
+            prediction_status,
+        ],
+    )
+
+    # Autonomous observations.
+    auto_start = styled_dropdown(
+        label="Auto start position",
+        options=[ft.DropdownOption(text=location) for location in AUTO_STARTING],
+        height=64,
+    )
+    center_scored = styled_switch("Scored fuel from center?")
+    center_intaked = styled_switch("Collected extra fuel in auto?")
+    center_controls = ft.Column(
+        visible=False, controls=[switch_tile(center_scored), switch_tile(center_intaked)]
+    )
+    neutral_passes = styled_field(
+        "Passes through the neutral zone", value="0", keyboard_type=ft.KeyboardType.NUMBER,
+        text_align=ft.TextAlign.CENTER,
+    )
+    subtract_pass_button = ft.IconButton(
+        icon=ft.Icons.REMOVE, icon_color=RED, tooltip="Subtract one"
+    )
+    add_pass_button = ft.IconButton(
+        icon=ft.Icons.ADD, icon_color=RED, tooltip="Add one"
+    )
+    neutral_passes_stepper = ft.Row(
+        spacing=8,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        controls=[
+            ft.Column(expand=True, controls=[neutral_passes]),
+            ft.Column(
+                spacing=0,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[add_pass_button, subtract_pass_button],
+            ),
+        ],
+    )
+    auto_climb = styled_switch("Climbed during auto?")
+
+    # Tele-op shooting and intake performance.
+    scored_fuel = styled_switch("Did the robot score fuel?", value=True)
+    shooter_type = styled_dropdown(
+        label="Shooter type", options=[ft.DropdownOption(text=x) for x in SHOOTER_TYPES]
+    )
+    hopper_size = styled_dropdown(
+        label="Hopper capacity", options=[ft.DropdownOption(text=x) for x in HOPPER_SIZES], value=HOPPER_SIZES[1]
+    )
+    accuracy_value = ft.Text("80%", color=RED, weight=ft.FontWeight.BOLD)
+    accuracy_header = ft.Row(
+        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        controls=[
+            ft.Text("Robot accuracy", weight=ft.FontWeight.W_600),
+            accuracy_value,
+        ],
+    )
+    accuracy = ft.Slider(
+        min=0, max=100, value=80, divisions=20,
+        active_color=RED, thumb_color=RED,
+    )
+    cycle_time = styled_dropdown(
+        label="Robot cycle time", options=[ft.DropdownOption(text=x) for x in RATINGS], value="Average"
+    )
+    throughput = styled_dropdown(
+        label="Shooting speed", options=[ft.DropdownOption(text=x) for x in RATINGS], value="Average"
+    )
+    scoring_controls = ft.Column(
+        horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        controls=[shooter_type, hopper_size, accuracy_header, accuracy, cycle_time, throughput],
+    )
+    intake_floor = ft.Checkbox(label="Floor", active_color=RED)
+    intake_outpost = ft.Checkbox(label="Outpost / human player", active_color=RED)
+    intake_rating = styled_dropdown(
+        label="Floor intake rating",
+        options=[
+            ft.DropdownOption(text=x)
+            for x in ["There's an intake?", "Jammed several times", "Average", "Above Average", "Awesome!"]
+        ],
+        value="Average",
+        visible=False,
+    )
+    inactive_choices = [
+        ft.Checkbox(label=choice, active_color=RED)
+        for choice in ["Nothing", "Defense", "Clear opposing fuel", "Pass / collect fuel"]
+    ]
+    intake_group = ft.Column(
+        spacing=4,
+        controls=[
+            ft.Text("How does the robot collect fuel?", weight=ft.FontWeight.W_600),
+            intake_floor,
+            intake_outpost,
+            intake_rating,
+        ],
+    )
+    inactive_group = ft.Column(
+        spacing=4,
+        controls=[
+            ft.Text("What do they do while the hub is inactive?", weight=ft.FontWeight.W_600),
+            *inactive_choices,
+        ],
+    )
+
+    # Movement, defense and endgame observations.
+    shoot_on_move = styled_switch("Shoot while moving?")
+    trench = styled_switch("Drove under the trench?", value=True)
+    bump = styled_switch("Drove over the bump?", value=True)
+    travel_path = styled_dropdown(
+        label="Preferred travel path",
+        options=[ft.DropdownOption(text=x) for x in ["Trench", "Bump", "Can't tell"]],
+    )
+    travel_warning = ft.Text("Select a travel path when both routes were possible.", color=MUTED, visible=False)
+    played_defense = styled_switch("Did they play defense?")
+    defense_rating = styled_dropdown(
+        label="Defense effectiveness",
+        options=[ft.DropdownOption(text=x) for x in ["Hurt more than helped", "It's okay", "Great!", "Amazing!"]],
+        visible=False,
+    )
+    had_defense = styled_switch("Did another robot play defense against them?")
+    defense_against_rating = styled_dropdown(
+        label="How much did defense affect them?",
+        options=[ft.DropdownOption(text=x) for x in ["Wait, what defense?", "A little", "Significantly", "Cost them the match"]],
+    )
+    defense_team = styled_field("Team that played defense")
+    defense_against_controls = ft.Column(
+        visible=False, controls=[defense_against_rating, defense_team]
+    )
+    endgame_climb = styled_switch("Climbed in endgame?")
+    climb_level = ft.Slider(
+        label="Climb level", min=1, max=3, value=1, divisions=2,
+        active_color=RED, thumb_color=RED, visible=False,
+    )
+    broke = styled_switch("Did the robot break?")
+    break_details = styled_field("What happened, and how did it affect them?", multiline=True, min_lines=2, visible=False)
+    extra_notes = styled_field("Anything else to note about this match?", multiline=True, min_lines=3)
+
+    # Upload feedback and optional score-accuracy view.
+    upload_button = ft.Button(content="Save Match Scouting")
+    upload_status = ft.Text(visible=False)
+    real_red = styled_field("Actual red score", value="0", keyboard_type=ft.KeyboardType.NUMBER)
+    real_blue = styled_field("Actual blue score", value="0", keyboard_type=ft.KeyboardType.NUMBER)
+    red_accuracy_value = ft.Text("—", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_800)
+    blue_accuracy_value = ft.Text("—", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_800)
+    average_accuracy_value = ft.Text("—", size=28, weight=ft.FontWeight.BOLD, color=INK)
+    result_hint = ft.Text("Enter both actual scores to calculate accuracy.", color=MUTED)
+
+    def accuracy_card(title: str, value: ft.Text, color: str, background: str) -> ft.Container:
+        return ft.Container(
+            expand=True,
+            padding=14,
+            bgcolor=background,
+            border=ft.Border.all(1, color),
+            border_radius=12,
+            content=ft.Column(
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    ft.Text(title, color=color, weight=ft.FontWeight.W_600, text_align=ft.TextAlign.CENTER),
+                    value,
+                ],
+            ),
+        )
+
+    result_box = ft.Column(
+        spacing=12,
+        visible=False,
+        controls=[
+            ft.Text("Prediction results", size=18, weight=ft.FontWeight.BOLD),
+            ft.Row(
+                spacing=10,
+                controls=[
+                    ft.Column(expand=1, controls=[real_red]),
+                    ft.Column(expand=1, controls=[real_blue]),
+                ],
+            ),
+            ft.Row(
+                spacing=10,
+                vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+                controls=[
+                    accuracy_card("Red prediction", red_accuracy_value, ft.Colors.RED_800, ft.Colors.RED_50),
+                    accuracy_card("Blue prediction", blue_accuracy_value, ft.Colors.BLUE_800, ft.Colors.BLUE_50),
+                ],
+            ),
+            ft.Container(
+                padding=12,
+                bgcolor=ft.Colors.GREY_100,
+                border_radius=12,
+                content=ft.Column(
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    controls=[
+                        ft.Text("Average accuracy", color=MUTED),
+                        average_accuracy_value,
+                        result_hint,
+                    ],
+                ),
+            ),
+        ],
+    )
+
+    # Wrap each functional group in a card to make the long form easier to scan.
+    auto_card = section(
+        "Autonomous",
+        [auto_start, center_controls, neutral_passes_stepper, switch_tile(auto_climb)],
+    )
+    tele_card = section(
+        "Tele-op",
+        [
+            switch_tile(scored_fuel),
+            scoring_controls,
+            intake_group,
+            inactive_group,
+            switch_tile(shoot_on_move), switch_tile(trench), switch_tile(bump),
+            travel_path, travel_warning,
+            switch_tile(played_defense), defense_rating,
+            switch_tile(had_defense), defense_against_controls,
+        ],
+    )
+    endgame_card = section(
+        "Endgame & match notes",
+        [switch_tile(endgame_climb), climb_level, switch_tile(broke), break_details, extra_notes],
+    )
+    scouting_form = ft.Column(
+        visible=False,
+        spacing=14,
+        controls=[auto_card, tele_card, endgame_card, upload_button, upload_status, result_box],
+    )
+
+    # Page content: straightforward flow from match details to team scouting form.
+    find_button.style = ft.ButtonStyle(bgcolor=RED, color=ft.Colors.WHITE)
+    submit_prediction_button.style = ft.ButtonStyle(bgcolor=RED, color=ft.Colors.WHITE)
+    upload_button.style = ft.ButtonStyle(bgcolor=RED, color=ft.Colors.WHITE)
+    content = ft.Column(
+        spacing=14,
+        horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        controls=[
+            ft.Container(
+                padding=14,
+                bgcolor=ft.Colors.GREY_200,
+                border_radius=14,
+                content=ft.Text(
+                    "Every observation is an estimate—use your best judgment. Unselected fields without a preset save as N/A.",
+                    color=INK,
+                ),
+            ),
+            section(
+                "Match details",
+                [event_key, scouter_name, match_number, switch_tile(predictions_toggle), prediction_notice],
+            ),
+            find_button,
+            match_status,
+            alliance_row,
+            prediction_box,
+            team_picker_row,
+            scouting_form,
+            ft.Container(height=28),  # Small bottom buffer after the last form control.
+        ],
+    )
+
+    # Small helpers keep the interaction logic readable and reusable.
+    def number(value) -> int:
+        try:
+            return int(value or 0)
+        except (ValueError, TypeError):
+            return 0
+
+    def answer(_field: str, value):
+        """Preserve preset and entered values; use N/A only when no value exists."""
+        return "N/A" if value is None or value == "" else value
+
+    def set_neutral_passes(delta: int):
+        """Adjust the auto pass count while respecting its 0–3 range."""
+        neutral_passes.value = str(max(0, min(3, number(neutral_passes.value) + delta)))
+        page.update()
+
+    def decrement_passes():
+        set_neutral_passes(-1)
+
+    def increment_passes():
+        set_neutral_passes(1)
+
+    def refresh_form():
+        scouting_form.visible = bool(team_picker.value) and state["predictions_ok"]
+        result_box.visible = bool(
+            scouting_form.visible
+            and predictions_toggle.value
+            and state["red_prediction"] is not None
+            and state["blue_prediction"] is not None
+        )
+        page.update()
+
+    def update_prediction_result():
+        actual_red, actual_blue = number(real_red.value), number(real_blue.value)
+        predictions_ready = (
+            state["red_prediction"] is not None
+            and state["blue_prediction"] is not None
+        )
+        if actual_red and actual_blue and predictions_ready:
+            red_pct = max(0, round(100 - abs(actual_red - state["red_prediction"]) / actual_red * 100))
+            blue_pct = max(0, round(100 - abs(actual_blue - state["blue_prediction"]) / actual_blue * 100))
+            red_accuracy_value.value = f"{red_pct}%"
+            blue_accuracy_value.value = f"{blue_pct}%"
+            average_accuracy_value.value = f"{(red_pct + blue_pct) / 2:.1f}%"
+            result_hint.value = "Higher average accuracy is better."
+        else:
+            red_accuracy_value.value = "—"
+            blue_accuracy_value.value = "—"
+            average_accuracy_value.value = "—"
+            result_hint.value = "Enter both actual scores to calculate accuracy."
+        page.update()
+
+    # Fetch the selected qualification match and populate its alliance cards.
+    async def find_teams():
+        key, qual = (event_key.value or "").strip(), number(match_number.value)
+        if not key or qual < 1:
+            match_status.value = "Enter an event key and a match number of at least 1."
+            match_status.color = RED
+            match_status.visible = True
+            page.update()
+            return
+
+        find_button.disabled = True
+        match_status.value = "Loading alliance teams…"
+        match_status.color = MUTED
+        match_status.visible = True
+        page.update()
+        try:
+            teams = await fetch_match(key, qual)
+            red_teams, blue_teams = teams["red"], teams["blue"]
+            all_teams = red_teams + blue_teams
+            if not all_teams:
+                raise ValueError("No teams were listed for this match.")
+            state["teams_found"] = True
+            state["predictions_ok"] = not predictions_toggle.value
+            state["red_prediction"] = state["blue_prediction"] = None
+            real_red.value = real_blue.value = "0"
+            red_accuracy_value.value = blue_accuracy_value.value = "—"
+            average_accuracy_value.value = "—"
+            team_picker.value = None
+            team_picker.options = [ft.DropdownOption(text=team) for team in all_teams]
+            alliance_row.controls = [
+                alliance_card("RED ALLIANCE", red_teams, ft.Colors.RED_50, ft.Colors.RED_800),
+                alliance_card("BLUE ALLIANCE", blue_teams, ft.Colors.BLUE_50, ft.Colors.BLUE_800),
+            ]
+            alliance_row.visible = True
+            team_picker.visible = True
+            team_picker_row.visible = True
+            prediction_box.visible = predictions_toggle.value
+            scouting_form.visible = False
+            match_status.value = f"Teams loaded · {key.upper()} · Qual {qual}"
+            match_status.color = ft.Colors.GREEN_800
+        except ValueError as error:
+            state["teams_found"] = False
+            match_status.value = str(error)
+            match_status.color = RED
+        except httpx.HTTPError as error:
+            state["teams_found"] = False
+            match_status.value = f"TBA request failed: {error}"
+            match_status.color = RED
+        finally:
+            find_button.disabled = False
+            match_status.visible = True
+            page.update()
+
+    # A saved prediction is required only when the optional prediction switch is on.
+    def save_predictions():
+        red, blue = number(red_prediction.value), number(blue_prediction.value)
+        if red > 0 and blue > 0:
+            state["red_prediction"], state["blue_prediction"] = red, blue
+            state["predictions_ok"] = True
+            prediction_status.value = "Predictions saved. You can start scouting."
+            prediction_status.color = ft.Colors.GREEN_800
+        else:
+            state["red_prediction"] = state["blue_prediction"] = None
+            state["predictions_ok"] = False
+            prediction_status.value = "Both predicted scores must be at least 1."
+            prediction_status.color = RED
+        update_prediction_result()
+        refresh_form()
+
+    # Return a list of selected labels for checkboxes in the scouting record.
+    def selected_checks(controls):
+        return ", ".join(control.label for control in controls if control.value) or "N/A"
+
+    # Save the observation row to the configured Google Sheet.
+    async def save_match():
+        if not team_picker.value:
+            upload_status.value = "Select a team before saving."
+            upload_status.color = RED
+            upload_status.visible = True
+            page.update()
+            return
+        row = {
+            "scouter": scouter_name.value.strip() or "N/A",
+            "team": team_picker.value,
+            "match": number(match_number.value),
+            "auto_start": answer("auto_start", auto_start.value),
+            "auto_center_intaked": answer("center_intaked", center_intaked.value)
+            if auto_start.value == "Center" else "N/A",
+            "auto_center_scored": answer("center_scored", center_scored.value)
+            if auto_start.value == "Center" else "N/A",
+            "neutral_passes": answer(
+                "neutral_passes",
+                max(0, min(3, number(neutral_passes.value)))
+                if (neutral_passes.value or "").strip() else None,
+            ) if auto_start.value != "Center" else "N/A",
+            "auto_climb": answer("auto_climb", auto_climb.value),
+            "scored_fuel": answer("scored_fuel", scored_fuel.value),
+            "shooter": answer("shooter_type", shooter_type.value)
+            if scored_fuel.value else "N/A",
+            "hopper": answer("hopper_size", hopper_size.value)
+            if scored_fuel.value else "N/A",
+            "accuracy": answer("accuracy", round(accuracy.value))
+            if scored_fuel.value else "N/A",
+            "throughput": answer("throughput", throughput.value)
+            if scored_fuel.value else "N/A",
+            "cycle_time": answer("cycle_time", cycle_time.value)
+            if scored_fuel.value else "N/A",
+            "intake": selected_checks([intake_floor, intake_outpost]),
+            "intake_rating": answer("intake_rating", intake_rating.value)
+            if intake_floor.value else "N/A",
+            "inactive_actions": selected_checks(inactive_choices),
+            "shoot_on_move": answer("shoot_on_move", shoot_on_move.value),
+            "trench": answer("trench", trench.value),
+            "bump": answer("bump", bump.value),
+            "travel_path": answer("travel_path", travel_path.value)
+            if trench.value and bump.value else "N/A",
+            "played_defense": answer("played_defense", played_defense.value),
+            "defense_rating": answer("defense_rating", defense_rating.value)
+            if played_defense.value else "N/A",
+            "had_defense": answer("had_defense", had_defense.value),
+            "defense_against_rating": answer("defense_against_rating", defense_against_rating.value)
+            if had_defense.value else "N/A",
+            "defense_team": defense_team.value.strip() or "N/A"
+            if had_defense.value else "N/A",
+            "endgame_climb": answer("endgame_climb", endgame_climb.value),
+            "climb_level": answer("climb_level", climb_level.value)
+            if endgame_climb.value else "N/A",
+            "broke": answer("broke", broke.value),
+            "break_details": break_details.value.strip() or "N/A"
+            if broke.value else "N/A",
+            "notes": extra_notes.value.strip() or "N/A",
+        }
+        upload_button.disabled = True
+        upload_status.value = "Sending match data to Google Sheets…"
+        upload_status.color = MUTED
+        upload_status.visible = True
+        page.update()
+        try:
+            await append_to_google_sheet(list(row.values()))
+            upload_status.value = "Match scouting saved to Google Sheets."
+            upload_status.color = ft.Colors.GREEN_800
+            result_box.visible = bool(
+                predictions_toggle.value and state["red_prediction"] and state["blue_prediction"]
+            )
+        except (ValueError, httpx.HTTPError, ImportError) as error:
+            upload_status.value = f"Could not save the match: {error}"
+            upload_status.color = RED
+        finally:
+            upload_button.disabled = False
+            upload_status.visible = True
+            page.update()
+
+    # Show only the inputs relevant to the selected observations.
+    def update_conditional_fields():
+        center_controls.visible = auto_start.value == "Center"
+        neutral_passes_stepper.visible = auto_start.value != "Center"
+        scoring_controls.visible = scored_fuel.value
+        intake_rating.visible = intake_floor.value
+        travel_path.visible = trench.value and bump.value
+        travel_warning.visible = not (trench.value and bump.value)
+        defense_rating.visible = played_defense.value
+        defense_against_controls.visible = had_defense.value
+        climb_level.visible = endgame_climb.value
+        break_details.visible = broke.value
+        page.update()
+
+    # Turning predictions off immediately makes team selection available again.
+    def toggle_predictions(e):
+        prediction_box.visible = state["teams_found"] and predictions_toggle.value
+        if predictions_toggle.value:
+            state["predictions_ok"] = False
+        else:
+            state["predictions_ok"] = True
+            state["red_prediction"] = state["blue_prediction"] = None
+        refresh_form()
+
+    # Connect conditional controls and keep the accuracy readout live.
+    def update_accuracy(e):
+        accuracy_value.value = f"{round(e.control.value)}%"
+        page.update()
+
+    find_button.on_click = find_teams
+    submit_prediction_button.on_click = save_predictions
+    upload_button.on_click = save_match
+    subtract_pass_button.on_click = decrement_passes
+    add_pass_button.on_click = increment_passes
+    predictions_toggle.on_change = toggle_predictions
+    team_picker.on_select = lambda e: refresh_form()
+    auto_start.on_select = update_conditional_fields
+    accuracy.on_change = update_accuracy
+    for control in (
+        scored_fuel, intake_floor, trench, bump, played_defense,
+        had_defense, endgame_climb, broke,
+    ):
+        control.on_change = update_conditional_fields
+
+    real_red.on_change = lambda e: update_prediction_result()
+    real_blue.on_change = lambda e: update_prediction_result()
+
+    return ft.ResponsiveRow(
+        alignment=ft.MainAxisAlignment.CENTER,
+        controls=[
+            ft.Container(
+                col={"xs": 12, "sm": 12, "md": 10, "lg": 8, "xl": 7, "xxl": 7},
+                content=content,
+            )
+        ],
+    )
