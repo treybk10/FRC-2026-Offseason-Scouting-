@@ -36,7 +36,7 @@ jobs:
 
       - name: Build Web App
         run: |
-          flet build web
+          flet build web --base-url /${{ github.event.repository.name }}/
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
