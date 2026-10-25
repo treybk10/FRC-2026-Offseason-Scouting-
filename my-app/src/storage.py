@@ -28,3 +28,4 @@ async def save_pending_matches(preferences, rows: list[list]) -> None:
     saved = await preferences.set(_PENDING_MATCHES_KEY, serialized_rows)
     if not saved:
         raise RuntimeError("Local storage did not confirm saving the match queue.")
+
