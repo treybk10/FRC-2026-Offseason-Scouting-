@@ -36,7 +36,7 @@ jobs:
 
       - name: Build Web App
         run: |
-          flet build web my-app/src --base-url /FRC-2026-Offseason-Scouting-/ --yes
+          flet build web my-app/src --base-url /FRC-2026-Offseason-Scouting-/ --output build/web --yes
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -44,7 +44,7 @@ jobs:
       - name: Upload Build Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'build/web'  # Changed back to root level build folder
+          path: 'build/web'
 
       - name: Deploy to GitHub Pages
         id: deployment
