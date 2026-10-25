@@ -2,10 +2,28 @@
 
 import flet as ft
 import httpx2 as httpx
+import socket
 
 from api import append_to_google_sheet, fetch_match
 from storage import load_pending_matches, save_pending_matches
 
+
+async def check_internet_connectivity(timeout: float = 3.0) -> bool:
+    """Check if the device has internet connectivity by attempting a DNS resolve.
+
+    Returns True if connectivity is available, False if offline.
+    Uses a quick DNS check to avoid long timeouts.
+    """
+    try:
+        # Try resolving a well-known hostname with a short timeout
+        socket.create_connection(("1.1.1.1", 53), timeout=timeout)
+        return True
+    except (OSError, socket.timeout):
+        return False
+
+
+# Shared local storage so pending match data survives page refreshes.
+preferences = ft.SharedPreferences()
 
 AUTO_STARTING = ["Left", "Right", "Center"]
 SHOOTER_TYPES = ["Single Dumper", "Multi-Wide Dumper", "Single Turret", "Dual Turret"]
@@ -122,7 +140,6 @@ def alliance_card(title: str, teams: list[str], bg: str, accent: str) -> ft.Cont
 
 def build_scouting_view(page: ft.Page) -> ft.Control:
     """Build match scouting with persistent offline upload support."""
-    preferences = ft.SharedPreferences()
     state = {
         "teams_found": False,
         "predictions_ok": False,
@@ -147,6 +164,16 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     )
     # Keep the team picker aligned with the left edge of the scouting form.
     team_picker_row = ft.Column(visible=False, controls=[team_picker])
+
+    # Offline mode: manual team entry field (shown when offline)
+    offline_team_row = ft.Column(
+        visible=False,
+        controls=[
+            ft.Text("Offline Mode: Enter the team number you are scouting", color=ft.Colors.ORANGE_800, size=16, weight=ft.FontWeight.BOLD),
+            styled_field("Team number", hint_text="e.g. 1506"),
+            ft.Text("Enter the single team you are scouting.", color=MUTED, size=12),
+        ]
+    )
 
     # Optional prediction inputs and match result score fields.
     predictions_toggle = styled_switch("Enter optional score predictions")
@@ -441,6 +468,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             alliance_row,
             prediction_box,
             team_picker_row,
+            offline_team_row,
             result_box,
             scouting_form,
         ],
@@ -469,13 +497,30 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         set_neutral_passes(1)
 
     def refresh_form():
-        scouting_form.visible = bool(team_picker.value) and state["predictions_ok"]
+        # In offline mode with manual team entry, allow proceeding to the scouting
+        # form even though the team picker isn't used. Online mode still requires
+        # the user to select a team from the TBA results first.
+        team_ready = bool(team_picker.value) or offline_team_row.visible
+        scouting_form.visible = team_ready and state["predictions_ok"]
         result_box.visible = bool(
             state["teams_found"]
             and predictions_toggle.value
             and state["red_prediction"] is not None
             and state["blue_prediction"] is not None
         )
+        page.update()
+
+    def refresh_offline_form():
+        """Update form visibility based on which team input method is active."""
+        # If we're in offline mode with manual team entry, show scouting form
+        # In offline mode, the manual team fields are visible and team_picker is hidden
+        # In online mode, the team picker is visible
+        if not state["teams_found"] and predictions_toggle.value:
+            # Offline mode with manual entry - ensure scouting form is visible
+            scouting_form.visible = True
+        else:
+            # Normal mode or online mode - normal visibility logic applies
+            refresh_form()
         page.update()
 
     def update_prediction_result():
@@ -586,6 +631,9 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             page.update()
             return
 
+        # Check if we have internet connectivity
+        has_internet = await check_internet_connectivity()
+
         find_button.disabled = True
         result_box.visible = False
         match_status.value = "Loading alliance teams…"
@@ -593,38 +641,62 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         match_status.visible = True
         page.update()
         try:
-            teams = await fetch_match(key, qual)
-            red_teams, blue_teams = teams["red"], teams["blue"]
-            all_teams = red_teams + blue_teams
-            if not all_teams:
-                raise ValueError("No teams were listed for this match.")
-            state["teams_found"] = True
-            state["predictions_ok"] = not predictions_toggle.value
-            state["red_prediction"] = state["blue_prediction"] = None
-            real_red.value = real_blue.value = "0"
-            red_accuracy_value.value = blue_accuracy_value.value = "—"
-            average_accuracy_value.value = "—"
-            red_prediction_detail.value = blue_prediction_detail.value = "Predicted score: —"
-            team_picker.value = None
-            team_picker.options = [ft.DropdownOption(text=team) for team in all_teams]
-            alliance_row.controls = [
-                alliance_card("RED ALLIANCE", red_teams, ft.Colors.RED_50, ft.Colors.RED_800),
-                alliance_card("BLUE ALLIANCE", blue_teams, ft.Colors.BLUE_50, ft.Colors.BLUE_800),
-            ]
-            alliance_row.visible = True
-            team_picker.visible = True
-            team_picker_row.visible = True
-            prediction_box.visible = predictions_toggle.value
-            scouting_form.visible = False
-            match_status.value = f"Teams loaded · {key.upper()} · Qual {qual}"
-            match_status.color = ft.Colors.GREEN_800
-            await try_auto_upload_pending()
+            if has_internet:
+                # Online mode: fetch from The Blue Alliance API
+                teams = await fetch_match(key, qual)
+                red_teams, blue_teams = teams["red"], teams["blue"]
+                all_teams = red_teams + blue_teams
+                if not all_teams:
+                    raise ValueError("No teams were listed for this match.")
+                state["teams_found"] = True
+                state["predictions_ok"] = not predictions_toggle.value
+                state["red_prediction"] = state["blue_prediction"] = None
+                real_red.value = real_blue.value = "0"
+                red_accuracy_value.value = blue_accuracy_value.value = "—"
+                average_accuracy_value.value = "—"
+                red_prediction_detail.value = blue_prediction_detail.value = "Predicted score: —"
+                team_picker.value = None
+                team_picker.options = [ft.DropdownOption(text=team) for team in all_teams]
+                alliance_row.controls = [
+                    alliance_card("RED ALLIANCE", red_teams, ft.Colors.RED_50, ft.Colors.RED_800),
+                    alliance_card("BLUE ALLIANCE", blue_teams, ft.Colors.BLUE_50, ft.Colors.BLUE_800),
+                ]
+                alliance_row.visible = True
+                team_picker.visible = True
+                team_picker_row.visible = True
+                offline_team_row.visible = False
+                prediction_box.visible = predictions_toggle.value
+                scouting_form.visible = False
+                match_status.value = f"Teams loaded · {key.upper()} · Qual {qual}"
+                match_status.color = ft.Colors.GREEN_800
+                await try_auto_upload_pending()
+            else:
+                # Offline mode: allow manual team number entry
+                state["teams_found"] = False
+                state["predictions_ok"] = not predictions_toggle.value
+                # Clear any previous team data
+                team_picker.value = None
+                team_picker.options = []
+                alliance_row.visible = False
+                team_picker.visible = False
+                team_picker_row.visible = False
+                prediction_box.visible = False
+                # Show the manual team entry fields instead
+                offline_team_row.visible = True
+                scouting_form.visible = True
+                match_status.value = "Offline mode — enter your team numbers manually below."
+                match_status.color = ft.Colors.ORANGE_800
+                match_status.visible = True
+                page.update()
+                await try_auto_upload_pending()
         except ValueError as error:
             state["teams_found"] = False
             match_status.value = str(error)
             match_status.color = RED
         except httpx.HTTPError as error:
             state["teams_found"] = False
+            # If we were online but the request failed, show error;
+            # if offline, this won't happen since we check first
             match_status.value = f"TBA request failed: {error}"
             match_status.color = RED
         finally:
@@ -663,15 +735,26 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             upload_status.visible = True
             page.update()
             return
-        if not team_picker.value:
+        # In offline mode, the team is entered in a single field instead of two.
+        if offline_team_row.visible:
+            selected_team = offline_team_row.controls[1].value.strip()
+            if not selected_team:
+                upload_status.value = "Enter at least one team number before saving."
+                upload_status.color = RED
+                upload_status.visible = True
+                page.update()
+                return
+        elif not team_picker.value:
             upload_status.value = "Select a team before saving."
             upload_status.color = RED
             upload_status.visible = True
             page.update()
             return
+        else:
+            selected_team = team_picker.value
         row = {
             "scouter": scouter_name.value.strip() or "N/A",
-            "team": team_picker.value,
+            "team": selected_team,
             "match": number(match_number.value),
             "auto_start": answer("auto_start", auto_start.value),
             "auto_center_intaked": answer("center_intaked", center_intaked.value)
@@ -782,7 +865,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         page.update()
 
     # Turning predictions off immediately makes team selection available again.
-    def toggle_predictions(e):
+    def toggle_predictions(_):
         prediction_box.visible = state["teams_found"] and predictions_toggle.value
         state["red_prediction"] = state["blue_prediction"] = None
         red_prediction_detail.value = blue_prediction_detail.value = "Predicted score: —"
@@ -793,10 +876,12 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         else:
             state["predictions_ok"] = True
         refresh_form()
+        refresh_offline_form()
+        page.update()
 
     # Connect conditional controls and keep the accuracy readout live.
-    def update_accuracy(e):
-        accuracy_value.value = f"{round(e.control.value)}%"
+    def update_accuracy(_e):
+        accuracy_value.value = f"{round(_e.control.value)}%"
         page.update()
 
     find_button.on_click = find_teams
@@ -806,7 +891,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     subtract_pass_button.on_click = decrement_passes
     add_pass_button.on_click = increment_passes
     predictions_toggle.on_change = toggle_predictions
-    team_picker.on_select = lambda e: refresh_form()
+    team_picker.on_select = lambda _: refresh_form()
     auto_start.on_select = update_conditional_fields
     accuracy.on_change = update_accuracy
     for control in (
@@ -815,8 +900,8 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     ):
         control.on_change = update_conditional_fields
 
-    real_red.on_change = lambda e: update_prediction_result()
-    real_blue.on_change = lambda e: update_prediction_result()
+    real_red.on_change = lambda _: update_prediction_result()
+    real_blue.on_change = lambda _: update_prediction_result()
 
     return ft.ResponsiveRow(
         alignment=ft.MainAxisAlignment.CENTER,

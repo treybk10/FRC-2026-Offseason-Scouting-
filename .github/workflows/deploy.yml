@@ -1,0 +1,78 @@
+name: Build and Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Allows manual trigger from Actions tab
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: my-app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install flet and dependencies
+        run: |
+          pip install --upgrade pip
+          pip install flet>=1.0.4 flet-cli>=1.0.4 flet-web>=1.0.4
+
+      - name: Generate api_keys.py from secrets
+        env:
+          TBA_API_KEY: ${{ secrets.TBA_API_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_INFO: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_INFO }}
+          GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
+          GOOGLE_SHEETS_RANGE: ${{ secrets.GOOGLE_SHEETS_RANGE }}
+        run: |
+          python3 -c "
+import os
+with open('src/api_keys.py', 'w') as f:
+    f.write('# Private API configuration. Generated at deploy time from GitHub Secrets.\n')
+    f.write('# Do not edit manually — changes will be overwritten on next deploy.\n')
+    f.write('\n')
+    f.write('# Get a key from your The Blue Alliance account.\n')
+    f.write(f'TBA_API_KEY = \"{os.environ[\"TBA_API_KEY\"]}\"\n')
+    f.write('\n')
+    f.write('# Paste the service-account JSON fields from Google Cloud here.\n')
+    f.write('GOOGLE_SERVICE_ACCOUNT_INFO = ''' + os.environ['GOOGLE_SERVICE_ACCOUNT_INFO'] + '''\n')
+    f.write('\n')
+    f.write('# Find the ID in the spreadsheet URL between /d/ and /edit.\n')
+    f.write(f'GOOGLE_SHEETS_SPREADSHEET_ID = \"{os.environ[\"GOOGLE_SHEETS_SPREADSHEET_ID\"]}\"\n')
+    f.write('\n')
+    f.write('# The target worksheet and starting cell. Match this to your actual tab name.\n')
+    f.write(f'GOOGLE_SHEETS_RANGE = \"{os.environ[\"GOOGLE_SHEETS_RANGE\"]}\"\n')
+    f.write('\n')
+    print('api_keys.py generated at src/api_keys.py')
+"
+
+      - name: Build web app
+        run: flet build web
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: my-app/build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
