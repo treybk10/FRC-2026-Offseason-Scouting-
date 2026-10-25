@@ -44,7 +44,7 @@ jobs:
       - name: Upload Build Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'my-app/build/web'  # Corrected path to include the subfolder
+          path: 'build/web'  # Changed back to root level build folder
 
       - name: Deploy to GitHub Pages
         id: deployment
