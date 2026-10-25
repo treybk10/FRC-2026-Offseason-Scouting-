@@ -1,4 +1,5 @@
 flet
 httpx2
+httpx2-jsfetch
 pandas
 numpy
