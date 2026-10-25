@@ -36,7 +36,7 @@ jobs:
 
       - name: Build Web App
         run: |
-          flet build web --base-url /FRC-2026-Offseason-Scouting-/
+          flet build web --base-url /FRC-2026-Offseason-Scouting-/ --yes
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
