@@ -2,5 +2,3 @@ flet
 httpx2
 pandas
 numpy
-socket
-json
