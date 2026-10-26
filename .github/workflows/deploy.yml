@@ -67,6 +67,26 @@ jobs:
                   '(should start with "{" and end with "}")'
               )
 
+          # Accept either JSON escape sequences or a value pasted with literal
+          # line breaks in the private-key field, then emit one valid PEM value.
+          private_key = service_account.get('private_key')
+          if isinstance(private_key, str):
+              service_account['private_key'] = private_key.replace('\\\\n', '\\n')
+          else:
+              raise SystemExit(
+                  'GOOGLE_SERVICE_ACCOUNT_INFO is missing a string private_key field.'
+              )
+
+          required_fields = (
+              'project_id', 'private_key_id', 'client_email', 'client_id', 'token_uri'
+          )
+          missing = [field for field in required_fields if not service_account.get(field)]
+          if missing:
+              raise SystemExit(
+                  'GOOGLE_SERVICE_ACCOUNT_INFO is missing required fields: '
+                  + ', '.join(missing)
+              )
+
           with open('my-app/src/api_keys.py', 'w') as f:
               f.write('# This file is generated from GitHub repository secrets during CI.\n')
               f.write('# It is NOT tracked in version control (see .gitignore).\n\n')
