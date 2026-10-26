@@ -49,7 +49,23 @@ jobs:
           tba_key = os.environ['TBA_API_KEY']
           spreadsheet_id = os.environ['GOOGLE_SHEETS_SPREADSHEET_ID']
           sheets_range = os.environ['GOOGLE_SHEETS_RANGE']
-          service_account = json.loads(os.environ['GOOGLE_SERVICE_ACCOUNT_INFO'])
+          service_account_str = os.environ['GOOGLE_SERVICE_ACCOUNT_INFO'].strip()
+
+          # Strip markdown code fences if present (common paste mistake)
+          if service_account_str.startswith('```'):
+              service_account_str = service_account_str.split('\n', 1)[1]
+          if service_account_str.endswith('```'):
+              service_account_str = service_account_str.rsplit('\n', 1)[0]
+          service_account_str = service_account_str.strip()
+
+          try:
+              service_account = json.loads(service_account_str)
+          except json.JSONDecodeError as err:
+              raise SystemExit(
+                  f'GOOGLE_SERVICE_ACCOUNT_INFO secret is not valid JSON: {err}\n'
+                  'Paste the full service-account JSON key file from Google Cloud '
+                  '(should start with \"{\") with no extra text around it.'
+              )
 
           with open('my-app/src/api_keys.py', 'w') as f:
               f.write('# This file is generated from GitHub repository secrets during CI.\n')
