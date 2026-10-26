@@ -1,5 +1,7 @@
 """Async network functions for The Blue Alliance, Statbotics, and Google Sheets."""
 
+import json
+import os
 import time
 from urllib.parse import quote
 
@@ -7,20 +9,46 @@ import httpx2 as httpx
 
 try:
     from api_keys import (
-        GOOGLE_SERVICE_ACCOUNT_INFO,
-        GOOGLE_SHEETS_RANGE,
-        GOOGLE_SHEETS_SPREADSHEET_ID,
-        TBA_API_KEY,
+        GOOGLE_SERVICE_ACCOUNT_INFO as LOCAL_GOOGLE_SERVICE_ACCOUNT_INFO,
+        GOOGLE_SHEETS_RANGE as LOCAL_GOOGLE_SHEETS_RANGE,
+        GOOGLE_SHEETS_SPREADSHEET_ID as LOCAL_GOOGLE_SHEETS_SPREADSHEET_ID,
+        TBA_API_KEY as LOCAL_TBA_API_KEY,
     )
 except ImportError:
     # api_keys.py is intentionally excluded from version control (it holds secrets).
-    # The GitHub Actions workflow generates it from repository secrets during CI so
-    # it gets bundled into app.zip. Locally you can create it by hand for dev.
-    # Features that need real keys raise a clear error when they're actually used.
-    GOOGLE_SERVICE_ACCOUNT_INFO = {}
-    GOOGLE_SHEETS_RANGE = "Sheet1!A1"
-    GOOGLE_SHEETS_SPREADSHEET_ID = "ADD_SPREADSHEET_ID"
-    TBA_API_KEY = None
+    # Local development can provide it, while CI can provide the same values through
+    # environment variables before packaging the app.
+    LOCAL_GOOGLE_SERVICE_ACCOUNT_INFO = {}
+    LOCAL_GOOGLE_SHEETS_RANGE = "Sheet1!A1"
+    LOCAL_GOOGLE_SHEETS_SPREADSHEET_ID = "ADD_SPREADSHEET_ID"
+    LOCAL_TBA_API_KEY = None
+
+
+def _service_account_from_environment() -> dict:
+    """Load the complete service-account JSON supplied by CI or a local shell."""
+    raw_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+    if not raw_json:
+        return LOCAL_GOOGLE_SERVICE_ACCOUNT_INFO
+    try:
+        info = json.loads(raw_json)
+    except json.JSONDecodeError as error:
+        raise ValueError(
+            "GOOGLE_SERVICE_ACCOUNT_JSON must contain the complete downloaded "
+            "Google service-account JSON file."
+        ) from error
+    if not isinstance(info, dict):
+        raise ValueError("GOOGLE_SERVICE_ACCOUNT_JSON must contain a JSON object.")
+    return info
+
+
+# Environment variables take precedence so GitHub Actions can inject credentials
+# without committing or manually reconstructing src/api_keys.py.
+GOOGLE_SERVICE_ACCOUNT_INFO = _service_account_from_environment()
+GOOGLE_SHEETS_RANGE = os.getenv("GOOGLE_SHEETS_RANGE", LOCAL_GOOGLE_SHEETS_RANGE)
+GOOGLE_SHEETS_SPREADSHEET_ID = os.getenv(
+    "GOOGLE_SHEETS_SPREADSHEET_ID", LOCAL_GOOGLE_SHEETS_SPREADSHEET_ID
+)
+TBA_API_KEY = os.getenv("TBA_API_KEY", LOCAL_TBA_API_KEY)
 
 TBA_URL = "https://www.thebluealliance.com/api/v3"
 STATBOTICS_URL = "https://api.statbotics.io/v3"

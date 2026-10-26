@@ -1,0 +1,60 @@
+name: Build app
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install flet google-auth httpx2 httpx2-jsfetch pandas numpy
+
+      - name: Build Android APK
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
+          GOOGLE_SHEETS_RANGE: ${{ secrets.GOOGLE_SHEETS_RANGE }}
+          TBA_API_KEY: ${{ secrets.TBA_API_KEY }}
+        run: |
+          test -n "$GOOGLE_SERVICE_ACCOUNT_JSON"
+          test -n "$GOOGLE_SHEETS_SPREADSHEET_ID"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          info = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"])
+          required = ("type", "project_id", "private_key_id", "private_key", "client_email", "client_id")
+          missing = [key for key in required if not info.get(key)]
+          if missing:
+              raise SystemExit(f"Google service-account JSON is missing: {', '.join(missing)}")
+          if not info["private_key"].startswith("-----BEGIN PRIVATE KEY-----"):
+              raise SystemExit("Google service-account private_key is not complete PEM")
+
+          Path("src/api_keys.py").write_text(
+              "GOOGLE_SERVICE_ACCOUNT_INFO = " + repr(info) + "\n"
+              "TBA_API_KEY = " + repr(os.environ.get("TBA_API_KEY", "")) + "\n"
+              "GOOGLE_SHEETS_SPREADSHEET_ID = " + repr(os.environ["GOOGLE_SHEETS_SPREADSHEET_ID"]) + "\n"
+              "GOOGLE_SHEETS_RANGE = " + repr(os.environ.get("GOOGLE_SHEETS_RANGE") or "Sheet1!A1") + "\n"
+          )
+          PY
+          flet build apk -v
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: scouting-app-apk
+          path: build/apk/*.apk
