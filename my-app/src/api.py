@@ -5,12 +5,22 @@ from urllib.parse import quote
 
 import httpx2 as httpx
 
-from api_keys import (
-    GOOGLE_SERVICE_ACCOUNT_INFO,
-    GOOGLE_SHEETS_RANGE,
-    GOOGLE_SHEETS_SPREADSHEET_ID,
-    TBA_API_KEY,
-)
+try:
+    from api_keys import (
+        GOOGLE_SERVICE_ACCOUNT_INFO,
+        GOOGLE_SHEETS_RANGE,
+        GOOGLE_SHEETS_SPREADSHEET_ID,
+        TBA_API_KEY,
+    )
+except ImportError:
+    # api_keys.py is intentionally excluded from version control (it holds secrets
+    # like the TBA API key and Google service account credentials). The GitHub
+    # Pages build won't have it, so provide placeholders so the app still loads.
+    # Features that need real keys raise a clear error when they're actually used.
+    GOOGLE_SERVICE_ACCOUNT_INFO = {}
+    GOOGLE_SHEETS_RANGE = None
+    GOOGLE_SHEETS_SPREADSHEET_ID = None
+    TBA_API_KEY = None
 
 TBA_URL = "https://www.thebluealliance.com/api/v3"
 STATBOTICS_URL = "https://api.statbotics.io/v3"
