@@ -41,11 +41,11 @@ jobs:
           GOOGLE_SHEETS_RANGE: ${{ secrets.GOOGLE_SHEETS_RANGE }}
           GOOGLE_SERVICE_ACCOUNT_INFO: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_INFO }}
         run: |
-          python3 -c "
+          python3 << 'EOF'
           import json
           import os
 
-          # Read secrets from env vars (GitHub Actions injects them)
+          # Read secrets from environment variables (GitHub Actions injects them)
           tba_key = os.environ['TBA_API_KEY']
           spreadsheet_id = os.environ['GOOGLE_SHEETS_SPREADSHEET_ID']
           sheets_range = os.environ['GOOGLE_SHEETS_RANGE']
@@ -64,7 +64,7 @@ jobs:
               raise SystemExit(
                   f'GOOGLE_SERVICE_ACCOUNT_INFO secret is not valid JSON: {err}\n'
                   'Paste the full service-account JSON key file from Google Cloud '
-                  '(should start with \"{\") with no extra text around it.'
+                  '(should start with "{" and end with "}")'
               )
 
           with open('my-app/src/api_keys.py', 'w') as f:
@@ -74,7 +74,7 @@ jobs:
               f.write(f'GOOGLE_SHEETS_SPREADSHEET_ID = {json.dumps(spreadsheet_id)}\n')
               f.write(f'GOOGLE_SHEETS_RANGE = {json.dumps(sheets_range)}\n')
               f.write(f'GOOGLE_SERVICE_ACCOUNT_INFO = {json.dumps(service_account)}\n')
-          "
+          EOF
 
       - name: Build Web App
         run: |
@@ -91,4 +91,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
