@@ -107,7 +107,22 @@ def _google_service_account() -> tuple[str, str]:
     from google.auth.jwt import encode
 
     now = int(time.time())
-    signer = RSASigner.from_string(info["private_key"], info["private_key_id"])
+    private_key = info["private_key"]
+    if isinstance(private_key, str):
+        private_key = (
+            private_key.replace("\\\\n", "\n")
+            .replace("\\n", "\n")
+            .replace("\\r\\n", "\n")
+            .replace("\\r", "\n")
+            .strip()
+        )
+    try:
+        signer = RSASigner.from_string(private_key, info["private_key_id"])
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            "The Google service-account private_key is not valid PEM. "
+            "Use the complete JSON key downloaded from Google Cloud."
+        ) from error
     assertion = encode(
         signer,
         {

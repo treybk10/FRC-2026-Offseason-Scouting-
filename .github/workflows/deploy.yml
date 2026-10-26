@@ -67,14 +67,29 @@ jobs:
                   '(should start with "{" and end with "}")'
               )
 
-          # Accept either JSON escape sequences or a value pasted with literal
-          # line breaks in the private-key field, then emit one valid PEM value.
+          # Normalize keys pasted with either escaped or literal line breaks.
           private_key = service_account.get('private_key')
           if isinstance(private_key, str):
-              service_account['private_key'] = private_key.replace('\\\\n', '\\n')
+              private_key = (
+                  private_key.replace('\\\\n', '\n')
+                  .replace('\\n', '\n')
+                  .replace('\\r\\n', '\n')
+                  .replace('\\r', '\n')
+                  .strip()
+              )
+              service_account['private_key'] = private_key
           else:
               raise SystemExit(
                   'GOOGLE_SERVICE_ACCOUNT_INFO is missing a string private_key field.'
+              )
+          if not (
+              private_key.startswith('-----BEGIN ')
+              and 'PRIVATE KEY-----' in private_key.split('\n', 1)[0]
+              and private_key.rstrip().endswith('-----')
+          ):
+              raise SystemExit(
+                  'GOOGLE_SERVICE_ACCOUNT_INFO private_key is not a PEM private key. '
+                  'Use the complete JSON key downloaded from Google Cloud.'
               )
 
           required_fields = (
