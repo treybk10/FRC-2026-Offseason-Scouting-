@@ -35,15 +35,31 @@ jobs:
           pip install flet httpx2
 
       - name: Generate api_keys.py from repository secrets
+        env:
+          TBA_API_KEY: ${{ secrets.TBA_API_KEY }}
+          GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
+          GOOGLE_SHEETS_RANGE: ${{ secrets.GOOGLE_SHEETS_RANGE }}
+          GOOGLE_SERVICE_ACCOUNT_INFO: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_INFO }}
         run: |
-          cat > my-app/src/api_keys.py << 'PYEOF'
-          # This file is generated from GitHub repository secrets during CI.
-          # It is NOT tracked in version control (see .gitignore).
-          TBA_API_KEY = "${{ secrets.TBA_API_KEY }}"
-          GOOGLE_SHEETS_SPREADSHEET_ID = "${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}"
-          GOOGLE_SHEETS_RANGE = "${{ secrets.GOOGLE_SHEETS_RANGE }}"
-          GOOGLE_SERVICE_ACCOUNT_INFO = ${{ secrets.GOOGLE_SERVICE_ACCOUNT_INFO }}
-          PYEOF
+          python3 -c "
+      import json
+      import os
+
+      # Read secrets from env vars (GitHub Actions injects them)
+      tba_key = os.environ['TBA_API_KEY']
+      spreadsheet_id = os.environ['GOOGLE_SHEETS_SPREADSHEET_ID']
+      sheets_range = os.environ['GOOGLE_SHEETS_RANGE']
+      service_account = json.loads(os.environ['GOOGLE_SERVICE_ACCOUNT_INFO'])
+
+      with open('my-app/src/api_keys.py', 'w') as f:
+          f.write('# This file is generated from GitHub repository secrets during CI.\n')
+          f.write('# It is NOT tracked in version control (see .gitignore).\n\n')
+          f.write(f'TBA_API_KEY = {json.dumps(tba_key)}\n')
+          f.write(f'GOOGLE_SHEETS_SPREADSHEET_ID = {json.dumps(spreadsheet_id)}\n')
+          f.write(f'GOOGLE_SHEETS_RANGE = {json.dumps(sheets_range)}\n')
+          f.write(f'GOOGLE_SERVICE_ACCOUNT_INFO = {json.dumps(service_account)}\n')
+      "
+
 
       - name: Build Web App
         run: |
