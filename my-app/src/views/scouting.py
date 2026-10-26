@@ -23,7 +23,8 @@ async def check_internet_connectivity(timeout: float = 3.0) -> bool:
 
 
 # Shared local storage so pending match data survives page refreshes.
-preferences = ft.SharedPreferences()
+# Must be added to the page before use (done in build_scouting_view).
+preferences = ft.SharedPreferences(visible=False)
 
 AUTO_STARTING = ["Left", "Right", "Center"]
 SHOOTER_TYPES = ["Single Dumper", "Multi-Wide Dumper", "Single Turret", "Dual Turret"]
@@ -140,6 +141,8 @@ def alliance_card(title: str, teams: list[str], bg: str, accent: str) -> ft.Cont
 
 def build_scouting_view(page: ft.Page) -> ft.Control:
     """Build match scouting with persistent offline upload support."""
+    # SharedPreferences must be added to the page before it can be used.
+    page.add(preferences)
     state = {
         "teams_found": False,
         "predictions_ok": False,
