@@ -17,6 +17,7 @@ logging.getLogger("app").setLevel(LOG_LEVEL)
 SCREEN_NAMES = ["Match Scouting", "Pit Scouting", "Current Rankings", "Statbotics"]
 
 
+
 def main(page: ft.Page):
     """Set the shared theme and mount the scouting, rankings, and Statbotics screens."""
     page.title = "Metal Muscle Scouting"
