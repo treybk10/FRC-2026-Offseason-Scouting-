@@ -34,6 +34,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install flet httpx2
 
+      - name: Generate api_keys.py from repository secrets
+        run: |
+          cat > my-app/src/api_keys.py << 'PYEOF'
+          # This file is generated from GitHub repository secrets during CI.
+          # It is NOT tracked in version control (see .gitignore).
+          TBA_API_KEY = "${{ secrets.TBA_API_KEY }}"
+          GOOGLE_SHEETS_SPREADSHEET_ID = "${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}"
+          GOOGLE_SHEETS_RANGE = "${{ secrets.GOOGLE_SHEETS_RANGE }}"
+          GOOGLE_SERVICE_ACCOUNT_INFO = ${{ secrets.GOOGLE_SERVICE_ACCOUNT_INFO }}
+          PYEOF
+
       - name: Build Web App
         run: |
           flet build web my-app/src --base-url /FRC-2026-Offseason-Scouting-/ --output build/web --yes

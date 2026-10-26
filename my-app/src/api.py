@@ -13,13 +13,13 @@ try:
         TBA_API_KEY,
     )
 except ImportError:
-    # api_keys.py is intentionally excluded from version control (it holds secrets
-    # like the TBA API key and Google service account credentials). The GitHub
-    # Pages build won't have it, so provide placeholders so the app still loads.
+    # api_keys.py is intentionally excluded from version control (it holds secrets).
+    # The GitHub Actions workflow generates it from repository secrets during CI so
+    # it gets bundled into app.zip. Locally you can create it by hand for dev.
     # Features that need real keys raise a clear error when they're actually used.
     GOOGLE_SERVICE_ACCOUNT_INFO = {}
-    GOOGLE_SHEETS_RANGE = None
-    GOOGLE_SHEETS_SPREADSHEET_ID = None
+    GOOGLE_SHEETS_RANGE = "Sheet1!A1"
+    GOOGLE_SHEETS_SPREADSHEET_ID = "ADD_SPREADSHEET_ID"
     TBA_API_KEY = None
 
 TBA_URL = "https://www.thebluealliance.com/api/v3"
