@@ -334,7 +334,6 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         label="How much did defense affect them?",
         min=1, max=4, value=2, divisions=3,
         active_color=RED, thumb_color=RED,
-        visible=False,
     )
     defense_team = styled_field("Team that played defense")
     defense_against_controls = ft.Column(
@@ -447,7 +446,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             scoring_controls,
             intake_group,
             inactive_group,
-            switch_tile(shoot_on_move), switch_tile(trench), switch_tile(bump),
+            switch_tile(played_defense), switch_tile(shoot_on_move), switch_tile(trench), switch_tile(bump),
             travel_path, travel_warning,
             defense_rating_header, defense_rating,
             switch_tile(had_defense), defense_against_header, defense_against_controls,
