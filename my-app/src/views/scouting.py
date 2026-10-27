@@ -143,9 +143,9 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     page._services.register_service(preferences)
     state = {
         "teams_found": False,
-        "predictions_ok": False,
-        "red_prediction": None,
-        "blue_prediction": None,
+        # "predictions_ok": False,
+        # "red_prediction": None,
+        # "blue_prediction": None,
         "syncing_queue": False,
     }
     # Match identification and alliance selection.
@@ -176,29 +176,29 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         ]
     )
 
-    # Optional prediction inputs and match result score fields.
-    predictions_toggle = styled_switch("Enter optional score predictions")
-    prediction_notice = ft.Text(
-        "Predictions are just for fun. Enter both scores to unlock scouting when this is on.",
-        color=MUTED,
-    )
-    red_prediction = styled_field("Red predicted score", value="0", keyboard_type=ft.KeyboardType.NUMBER)
-    blue_prediction = styled_field("Blue predicted score", value="0", keyboard_type=ft.KeyboardType.NUMBER)
-    prediction_status = ft.Text()
-    submit_prediction_button = ft.Button(content="Save Predictions")
-    prediction_box = ft.Column(
-        visible=False,
-        controls=[
-            ft.Row(
-                controls=[
-                    ft.Column(expand=1, controls=[red_prediction]),
-                    ft.Column(expand=1, controls=[blue_prediction]),
-                ]
-            ),
-            submit_prediction_button,
-            prediction_status,
-        ],
-    )
+    # Match predictions are paused for now; keep this block for later.
+    # predictions_toggle = styled_switch("Enter optional score predictions")
+    # prediction_notice = ft.Text(
+    #     "Predictions are just for fun. Enter both scores to unlock scouting when this is on.",
+    #     color=MUTED,
+    # )
+    # red_prediction = styled_field("Red predicted score", value="0", keyboard_type=ft.KeyboardType.NUMBER)
+    # blue_prediction = styled_field("Blue predicted score", value="0", keyboard_type=ft.KeyboardType.NUMBER)
+    # prediction_status = ft.Text()
+    # submit_prediction_button = ft.Button(content="Save Predictions")
+    # prediction_box = ft.Column(
+    #     visible=False,
+    #     controls=[
+    #         ft.Row(
+    #             controls=[
+    #                 ft.Column(expand=1, controls=[red_prediction]),
+    #                 ft.Column(expand=1, controls=[blue_prediction]),
+    #             ]
+    #         ),
+    #         submit_prediction_button,
+    #         prediction_status,
+    #     ],
+    # )
 
     # Autonomous observations.
     auto_start = styled_dropdown(
@@ -330,82 +330,83 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     break_details = styled_field("What happened, and how did it affect them?", multiline=True, min_lines=2, visible=False)
     extra_notes = styled_field("Anything else to note about this match?", multiline=True, min_lines=3)
 
-    # Upload feedback and optional score-accuracy view.
+    # Upload feedback.
     upload_button = ft.Button(content="Save Match Scouting")
     upload_status = ft.Text(visible=False)
     pending_upload_button = ft.OutlinedButton(content="Upload saved matches")
     pending_upload_status = ft.Text(
         "Offline matches are kept on this device until they can be uploaded.", color=MUTED
     )
-    real_red = styled_field("Actual red score", value="0", keyboard_type=ft.KeyboardType.NUMBER)
-    real_blue = styled_field("Actual blue score", value="0", keyboard_type=ft.KeyboardType.NUMBER)
-    red_prediction_detail = ft.Text("Predicted score: —", color=MUTED)
-    blue_prediction_detail = ft.Text("Predicted score: —", color=MUTED)
-    red_accuracy_value = ft.Text("—", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_800)
-    blue_accuracy_value = ft.Text("—", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_800)
-    average_accuracy_value = ft.Text("—", size=28, weight=ft.FontWeight.BOLD, color=INK)
-    result_hint = ft.Text("Enter both actual scores to calculate accuracy.", color=MUTED)
+    # Score-accuracy view, paused with match predictions.
+    # real_red = styled_field("Actual red score", value="0", keyboard_type=ft.KeyboardType.NUMBER)
+    # real_blue = styled_field("Actual blue score", value="0", keyboard_type=ft.KeyboardType.NUMBER)
+    # red_prediction_detail = ft.Text("Predicted score: —", color=MUTED)
+    # blue_prediction_detail = ft.Text("Predicted score: —", color=MUTED)
+    # red_accuracy_value = ft.Text("—", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_800)
+    # blue_accuracy_value = ft.Text("—", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_800)
+    # average_accuracy_value = ft.Text("—", size=28, weight=ft.FontWeight.BOLD, color=INK)
+    # result_hint = ft.Text("Enter both actual scores to calculate accuracy.", color=MUTED)
 
-    def accuracy_card(
-        title: str, prediction: ft.Text, value: ft.Text, color: str, background: str
-    ) -> ft.Container:
-        return ft.Container(
-            expand=True,
-            padding=14,
-            bgcolor=background,
-            border=ft.Border.all(1, color),
-            border_radius=12,
-            content=ft.Column(
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                controls=[
-                    ft.Text(title, color=color, weight=ft.FontWeight.W_600, text_align=ft.TextAlign.CENTER),
-                    prediction,
-                    value,
-                ],
-            ),
-        )
+    # def accuracy_card(
+    #     title: str, prediction: ft.Text, value: ft.Text, color: str, background: str
+    # ) -> ft.Container:
+    #     return ft.Container(
+    #         expand=True,
+    #         padding=14,
+    #         bgcolor=background,
+    #         border=ft.Border.all(1, color),
+    #         border_radius=12,
+    #         content=ft.Column(
+    #             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+    #             controls=[
+    #                 ft.Text(title, color=color, weight=ft.FontWeight.W_600, text_align=ft.TextAlign.CENTER),
+    #                 prediction,
+    #                 value,
+    #             ],
+    #         ),
+    #     )
 
-    result_box = ft.Column(
-        spacing=12,
-        visible=False,
-        controls=[
-            ft.Text("Prediction results", size=18, weight=ft.FontWeight.BOLD),
-            ft.Row(
-                spacing=10,
-                controls=[
-                    ft.Column(expand=1, controls=[real_red]),
-                    ft.Column(expand=1, controls=[real_blue]),
-                ],
-            ),
-            ft.Row(
-                spacing=10,
-                vertical_alignment=ft.CrossAxisAlignment.STRETCH,
-                controls=[
-                    accuracy_card(
-                        "Red prediction accuracy", red_prediction_detail,
-                        red_accuracy_value, ft.Colors.RED_800, ft.Colors.RED_50,
-                    ),
-                    accuracy_card(
-                        "Blue prediction accuracy", blue_prediction_detail,
-                        blue_accuracy_value, ft.Colors.BLUE_800, ft.Colors.BLUE_50,
-                    ),
-                ],
-            ),
-            ft.Container(
-                padding=12,
-                bgcolor=ft.Colors.GREY_100,
-                border_radius=12,
-                content=ft.Column(
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    controls=[
-                        ft.Text("Average accuracy", color=MUTED),
-                        average_accuracy_value,
-                        result_hint,
-                    ],
-                ),
-            ),
-        ],
-    )
+    # result_box = ft.Column(
+    #     spacing=12,
+    #     visible=False,
+    #     controls=[
+    #         ft.Text("Prediction results", size=18, weight=ft.FontWeight.BOLD),
+    #         ft.Row(
+    #             spacing=10,
+    #             controls=[
+    #                 ft.Column(expand=1, controls=[real_red]),
+    #                 ft.Column(expand=1, controls=[real_blue]),
+    #             ],
+    #         ),
+    #         ft.Row(
+    #             spacing=10,
+    #             vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+    #             controls=[
+    #                 accuracy_card(
+    #                     "Red prediction accuracy", red_prediction_detail,
+    #                     red_accuracy_value, ft.Colors.RED_800, ft.Colors.RED_50,
+    #                 ),
+    #                 accuracy_card(
+    #                     "Blue prediction accuracy", blue_prediction_detail,
+    #                     blue_accuracy_value, ft.Colors.BLUE_800, ft.Colors.BLUE_50,
+    #                 ),
+    #             ],
+    #         ),
+    #         ft.Container(
+    #             padding=12,
+    #             bgcolor=ft.Colors.GREY_100,
+    #             border_radius=12,
+    #             content=ft.Column(
+    #                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+    #                 controls=[
+    #                     ft.Text("Average accuracy", color=MUTED),
+    #                     average_accuracy_value,
+    #                     result_hint,
+    #                 ],
+    #             ),
+    #         ),
+    #     ],
+    # )
 
     # Wrap each functional group in a card to make the long form easier to scan.
     auto_card = section(
@@ -437,7 +438,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
 
     # Page content: straightforward flow from match details to team scouting form.
     find_button.style = ft.ButtonStyle(bgcolor=RED, color=ft.Colors.WHITE)
-    submit_prediction_button.style = ft.ButtonStyle(bgcolor=RED, color=ft.Colors.WHITE)
+    # submit_prediction_button.style = ft.ButtonStyle(bgcolor=RED, color=ft.Colors.WHITE)
     upload_button.style = ft.ButtonStyle(bgcolor=RED, color=ft.Colors.WHITE)
     content = ft.Column(
         spacing=14,
@@ -454,7 +455,8 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             ),
             section(
                 "Match details",
-                [event_key, scouter_name, match_number, switch_tile(predictions_toggle), prediction_notice],
+                [event_key, scouter_name, match_number],
+                # [event_key, scouter_name, match_number, switch_tile(predictions_toggle), prediction_notice],
             ),
             section(
                 "Saved match uploads",
@@ -467,10 +469,10 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             find_button,
             match_status,
             alliance_row,
-            prediction_box,
+            # prediction_box,
             team_picker_row,
             offline_team_row,
-            result_box,
+            # result_box,
             scouting_form,
         ],
     )
@@ -502,47 +504,48 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         # form even though the team picker isn't used. Online mode still requires
         # the user to select a team from the TBA results first.
         team_ready = bool(team_picker.value) or offline_team_row.visible
-        scouting_form.visible = team_ready and state["predictions_ok"]
-        result_box.visible = bool(
-            state["teams_found"]
-            and predictions_toggle.value
-            and state["red_prediction"] is not None
-            and state["blue_prediction"] is not None
-        )
+        scouting_form.visible = team_ready
+        # scouting_form.visible = team_ready and state["predictions_ok"]
+        # result_box.visible = bool(
+        #     state["teams_found"]
+        #     and predictions_toggle.value
+        #     and state["red_prediction"] is not None
+        #     and state["blue_prediction"] is not None
+        # )
         page.update()
 
-    def refresh_offline_form():
-        """Update form visibility based on which team input method is active."""
-        # If we're in offline mode with manual team entry, show scouting form
-        # In offline mode, the manual team fields are visible and team_picker is hidden
-        # In online mode, the team picker is visible
-        if not state["teams_found"] and predictions_toggle.value:
-            # Offline mode with manual entry - ensure scouting form is visible
-            scouting_form.visible = True
-        else:
-            # Normal mode or online mode - normal visibility logic applies
-            refresh_form()
-        page.update()
+    # def refresh_offline_form():
+    #     """Update form visibility based on which team input method is active."""
+    #     # If we're in offline mode with manual team entry, show scouting form
+    #     # In offline mode, the manual team fields are visible and team_picker is hidden
+    #     # In online mode, the team picker is visible
+    #     if not state["teams_found"] and predictions_toggle.value:
+    #         # Offline mode with manual entry - ensure scouting form is visible
+    #         scouting_form.visible = True
+    #     else:
+    #         # Normal mode or online mode - normal visibility logic applies
+    #         refresh_form()
+    #     page.update()
 
-    def update_prediction_result():
-        actual_red, actual_blue = number(real_red.value), number(real_blue.value)
-        predictions_ready = (
-            state["red_prediction"] is not None
-            and state["blue_prediction"] is not None
-        )
-        if actual_red and actual_blue and predictions_ready:
-            red_pct = max(0, round(100 - abs(actual_red - state["red_prediction"]) / actual_red * 100))
-            blue_pct = max(0, round(100 - abs(actual_blue - state["blue_prediction"]) / actual_blue * 100))
-            red_accuracy_value.value = f"{red_pct}%"
-            blue_accuracy_value.value = f"{blue_pct}%"
-            average_accuracy_value.value = f"{(red_pct + blue_pct) / 2:.1f}%"
-            result_hint.value = "Higher average accuracy is better."
-        else:
-            red_accuracy_value.value = "—"
-            blue_accuracy_value.value = "—"
-            average_accuracy_value.value = "—"
-            result_hint.value = "Enter both actual scores to calculate accuracy."
-        page.update()
+    # def update_prediction_result():
+    #     actual_red, actual_blue = number(real_red.value), number(real_blue.value)
+    #     predictions_ready = (
+    #         state["red_prediction"] is not None
+    #         and state["blue_prediction"] is not None
+    #     )
+    #     if actual_red and actual_blue and predictions_ready:
+    #         red_pct = max(0, round(100 - abs(actual_red - state["red_prediction"]) / actual_red * 100))
+    #         blue_pct = max(0, round(100 - abs(actual_blue - state["blue_prediction"]) / actual_blue * 100))
+    #         red_accuracy_value.value = f"{red_pct}%"
+    #         blue_accuracy_value.value = f"{blue_pct}%"
+    #         average_accuracy_value.value = f"{(red_pct + blue_pct) / 2:.1f}%"
+    #         result_hint.value = "Higher average accuracy is better."
+    #     else:
+    #         red_accuracy_value.value = "—"
+    #         blue_accuracy_value.value = "—"
+    #         average_accuracy_value.value = "—"
+    #         result_hint.value = "Enter both actual scores to calculate accuracy."
+    #     page.update()
 
     def set_pending_status(message: str, count: int | None = None):
         """Keep the queued-row count and its upload feedback visible."""
@@ -636,7 +639,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         has_internet = await check_internet_connectivity()
 
         find_button.disabled = True
-        result_box.visible = False
+        # result_box.visible = False
         match_status.value = "Loading alliance teams…"
         match_status.color = MUTED
         match_status.visible = True
@@ -650,12 +653,12 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
                 if not all_teams:
                     raise ValueError("No teams were listed for this match.")
                 state["teams_found"] = True
-                state["predictions_ok"] = not predictions_toggle.value
-                state["red_prediction"] = state["blue_prediction"] = None
-                real_red.value = real_blue.value = "0"
-                red_accuracy_value.value = blue_accuracy_value.value = "—"
-                average_accuracy_value.value = "—"
-                red_prediction_detail.value = blue_prediction_detail.value = "Predicted score: —"
+                # state["predictions_ok"] = not predictions_toggle.value
+                # state["red_prediction"] = state["blue_prediction"] = None
+                # real_red.value = real_blue.value = "0"
+                # red_accuracy_value.value = blue_accuracy_value.value = "—"
+                # average_accuracy_value.value = "—"
+                # red_prediction_detail.value = blue_prediction_detail.value = "Predicted score: —"
                 team_picker.value = None
                 team_picker.options = [ft.DropdownOption(text=team) for team in all_teams]
                 alliance_row.controls = [
@@ -666,7 +669,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
                 team_picker.visible = True
                 team_picker_row.visible = True
                 offline_team_row.visible = False
-                prediction_box.visible = predictions_toggle.value
+                # prediction_box.visible = predictions_toggle.value
                 scouting_form.visible = False
                 match_status.value = f"Teams loaded · {key.upper()} · Qual {qual}"
                 match_status.color = ft.Colors.GREEN_800
@@ -674,14 +677,14 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             else:
                 # Offline mode: allow manual team number entry
                 state["teams_found"] = False
-                state["predictions_ok"] = not predictions_toggle.value
+                # state["predictions_ok"] = not predictions_toggle.value
                 # Clear any previous team data
                 team_picker.value = None
                 team_picker.options = []
                 alliance_row.visible = False
                 team_picker.visible = False
                 team_picker_row.visible = False
-                prediction_box.visible = False
+                # prediction_box.visible = False
                 # Show the manual team entry fields instead
                 offline_team_row.visible = True
                 scouting_form.visible = True
@@ -706,23 +709,23 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             page.update()
 
     # A saved prediction is required only when the optional prediction switch is on.
-    def save_predictions():
-        red, blue = number(red_prediction.value), number(blue_prediction.value)
-        if red > 0 and blue > 0:
-            state["red_prediction"], state["blue_prediction"] = red, blue
-            red_prediction_detail.value = f"Predicted score: {red}"
-            blue_prediction_detail.value = f"Predicted score: {blue}"
-            state["predictions_ok"] = True
-            prediction_status.value = "Predictions saved. Enter the final scores below when available."
-            prediction_status.color = ft.Colors.GREEN_800
-        else:
-            state["red_prediction"] = state["blue_prediction"] = None
-            red_prediction_detail.value = blue_prediction_detail.value = "Predicted score: —"
-            state["predictions_ok"] = False
-            prediction_status.value = "Both predicted scores must be at least 1."
-            prediction_status.color = RED
-        update_prediction_result()
-        refresh_form()
+    # def save_predictions():
+    #     red, blue = number(red_prediction.value), number(blue_prediction.value)
+    #     if red > 0 and blue > 0:
+    #         state["red_prediction"], state["blue_prediction"] = red, blue
+    #         red_prediction_detail.value = f"Predicted score: {red}"
+    #         blue_prediction_detail.value = f"Predicted score: {blue}"
+    #         state["predictions_ok"] = True
+    #         prediction_status.value = "Predictions saved. Enter the final scores below when available."
+    #         prediction_status.color = ft.Colors.GREEN_800
+    #     else:
+    #         state["red_prediction"] = state["blue_prediction"] = None
+    #         red_prediction_detail.value = blue_prediction_detail.value = "Predicted score: —"
+    #         state["predictions_ok"] = False
+    #         prediction_status.value = "Both predicted scores must be at least 1."
+    #         prediction_status.color = RED
+    #     update_prediction_result()
+    #     refresh_form()
 
     # Return a list of selected labels for checkboxes in the scouting record.
     def selected_checks(controls):
@@ -866,19 +869,19 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         page.update()
 
     # Turning predictions off immediately makes team selection available again.
-    def toggle_predictions(_):
-        prediction_box.visible = state["teams_found"] and predictions_toggle.value
-        state["red_prediction"] = state["blue_prediction"] = None
-        red_prediction_detail.value = blue_prediction_detail.value = "Predicted score: —"
-        red_accuracy_value.value = blue_accuracy_value.value = "—"
-        average_accuracy_value.value = "—"
-        if predictions_toggle.value:
-            state["predictions_ok"] = False
-        else:
-            state["predictions_ok"] = True
-        refresh_form()
-        refresh_offline_form()
-        page.update()
+    # def toggle_predictions(_):
+    #     prediction_box.visible = state["teams_found"] and predictions_toggle.value
+    #     state["red_prediction"] = state["blue_prediction"] = None
+    #     red_prediction_detail.value = blue_prediction_detail.value = "Predicted score: —"
+    #     red_accuracy_value.value = blue_accuracy_value.value = "—"
+    #     average_accuracy_value.value = "—"
+    #     if predictions_toggle.value:
+    #         state["predictions_ok"] = False
+    #     else:
+    #         state["predictions_ok"] = True
+    #     refresh_form()
+    #     refresh_offline_form()
+    #     page.update()
 
     # Connect conditional controls and keep the accuracy readout live.
     def update_accuracy(_e):
@@ -886,12 +889,12 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         page.update()
 
     find_button.on_click = find_teams
-    submit_prediction_button.on_click = save_predictions
+    # submit_prediction_button.on_click = save_predictions
     upload_button.on_click = save_match
     pending_upload_button.on_click = retry_saved_matches
     subtract_pass_button.on_click = decrement_passes
     add_pass_button.on_click = increment_passes
-    predictions_toggle.on_change = toggle_predictions
+    # predictions_toggle.on_change = toggle_predictions
     team_picker.on_select = lambda _: refresh_form()
     auto_start.on_select = update_conditional_fields
     accuracy.on_change = update_accuracy
@@ -901,8 +904,8 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     ):
         control.on_change = update_conditional_fields
 
-    real_red.on_change = lambda _: update_prediction_result()
-    real_blue.on_change = lambda _: update_prediction_result()
+    # real_red.on_change = lambda _: update_prediction_result()
+    # real_blue.on_change = lambda _: update_prediction_result()
 
     return ft.ResponsiveRow(
         alignment=ft.MainAxisAlignment.CENTER,
