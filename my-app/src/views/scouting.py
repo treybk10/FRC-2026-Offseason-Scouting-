@@ -956,6 +956,9 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     # real_red.on_change = lambda _: update_prediction_result()
     # real_blue.on_change = lambda _: update_prediction_result()
 
+    # Set initial visibility of conditional fields based on default values.
+    update_conditional_fields()
+
     return ft.ResponsiveRow(
         alignment=ft.MainAxisAlignment.CENTER,
         controls=[
