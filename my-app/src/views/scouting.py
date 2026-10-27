@@ -265,7 +265,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         controls=[shooter_type, hopper_size, accuracy_header, accuracy, cycle_time, throughput],
     )
-    intake_floor = ft.Checkbox(label="Floor", active_color=RED)
+    intake_floor = ft.Checkbox(label="Floor", active_color=RED, value=True)
     intake_outpost = ft.Checkbox(label="Outpost / human player", active_color=RED)
     intake_rating = styled_dropdown(
         label="Floor intake rating",
@@ -307,21 +307,48 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     )
     travel_warning = ft.Text("Select a travel path when both routes were possible.", color=MUTED, visible=False)
     played_defense = styled_switch("Did they play defense?")
-    defense_rating = styled_dropdown(
+    defense_rating_value = ft.Text("It's okay", color=RED, weight=ft.FontWeight.BOLD)
+    defense_rating_header = ft.Row(
+        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        controls=[
+            ft.Text("Defense effectiveness", weight=ft.FontWeight.W_600),
+            defense_rating_value,
+        ],
+    )
+    defense_rating = ft.Slider(
         label="Defense effectiveness",
-        options=[ft.DropdownOption(text=x) for x in ["Hurt more than helped", "It's okay", "Great!", "Amazing!"]],
+        min=1, max=4, value=2, divisions=3,
+        active_color=RED, thumb_color=RED,
         visible=False,
     )
     had_defense = styled_switch("Did another robot play defense against them?")
-    defense_against_rating = styled_dropdown(
+    defense_against_rating_value = ft.Text("A little", color=RED, weight=ft.FontWeight.BOLD)
+    defense_against_header = ft.Row(
+        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        controls=[
+            ft.Text("How much did defense affect them?", weight=ft.FontWeight.W_600),
+            defense_against_rating_value,
+        ],
+    )
+    defense_against_rating = ft.Slider(
         label="How much did defense affect them?",
-        options=[ft.DropdownOption(text=x) for x in ["Wait, what defense?", "A little", "Significantly", "Cost them the match"]],
+        min=1, max=4, value=2, divisions=3,
+        active_color=RED, thumb_color=RED,
+        visible=False,
     )
     defense_team = styled_field("Team that played defense")
     defense_against_controls = ft.Column(
-        visible=False, controls=[defense_against_rating, defense_team]
+        visible=False, controls=[defense_against_rating, defense_against_rating_value, defense_team]
     )
     endgame_climb = styled_switch("Climbed in endgame?")
+    climb_level_value = ft.Text("1", color=RED, weight=ft.FontWeight.BOLD)
+    climb_level_header = ft.Row(
+        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        controls=[
+            ft.Text("Climb level", weight=ft.FontWeight.W_600),
+            climb_level_value,
+        ],
+    )
     climb_level = ft.Slider(
         label="Climb level", min=1, max=3, value=1, divisions=2,
         active_color=RED, thumb_color=RED, visible=False,
@@ -422,13 +449,13 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             inactive_group,
             switch_tile(shoot_on_move), switch_tile(trench), switch_tile(bump),
             travel_path, travel_warning,
-            switch_tile(played_defense), defense_rating,
-            switch_tile(had_defense), defense_against_controls,
+            defense_rating_header, defense_rating,
+            switch_tile(had_defense), defense_against_header, defense_against_controls,
         ],
     )
     endgame_card = section(
         "Endgame & match notes",
-        [switch_tile(endgame_climb), climb_level, switch_tile(broke), break_details, extra_notes],
+        [switch_tile(endgame_climb), climb_level_header, climb_level, switch_tile(broke), break_details, extra_notes],
     )
     scouting_form = ft.Column(
         visible=False,
@@ -792,15 +819,15 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             "travel_path": answer("travel_path", travel_path.value)
             if trench.value and bump.value else "N/A",
             "played_defense": answer("played_defense", played_defense.value),
-            "defense_rating": answer("defense_rating", defense_rating.value)
+            "defense_rating": answer("defense_rating", int(defense_rating.value))
             if played_defense.value else "N/A",
             "had_defense": answer("had_defense", had_defense.value),
-            "defense_against_rating": answer("defense_against_rating", defense_against_rating.value)
+            "defense_against_rating": answer("defense_against_rating", int(defense_against_rating.value))
             if had_defense.value else "N/A",
             "defense_team": defense_team.value.strip() or "N/A"
             if had_defense.value else "N/A",
             "endgame_climb": answer("endgame_climb", endgame_climb.value),
-            "climb_level": answer("climb_level", climb_level.value)
+            "climb_level": answer("climb_level", int(climb_level.value))
             if endgame_climb.value else "N/A",
             "broke": answer("broke", broke.value),
             "break_details": break_details.value.strip() or "N/A"
@@ -863,8 +890,11 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         travel_path.visible = trench.value and bump.value
         travel_warning.visible = not (trench.value and bump.value)
         defense_rating.visible = played_defense.value
+        defense_rating_header.visible = played_defense.value
         defense_against_controls.visible = had_defense.value
+        defense_against_header.visible = had_defense.value
         climb_level.visible = endgame_climb.value
+        climb_level_header.visible = endgame_climb.value
         break_details.visible = broke.value
         page.update()
 
@@ -888,6 +918,22 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         accuracy_value.value = f"{round(_e.control.value)}%"
         page.update()
 
+    def update_defense_rating(_e):
+        rating = round(_e.control.value)
+        labels = ["Hurt more than helped", "It's okay", "Great!", "Amazing!"]
+        defense_rating_value.value = labels[rating - 1]
+        page.update()
+
+    def update_defense_against_rating(_e):
+        rating = round(_e.control.value)
+        labels = ["Wait, what defense?", "A little", "Significantly", "Cost them the match"]
+        defense_against_rating_value.value = labels[rating - 1]
+        page.update()
+
+    def update_climb_level(_e):
+        climb_level_value.value = str(round(_e.control.value))
+        page.update()
+
     find_button.on_click = find_teams
     # submit_prediction_button.on_click = save_predictions
     upload_button.on_click = save_match
@@ -898,6 +944,9 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     team_picker.on_select = lambda _: refresh_form()
     auto_start.on_select = update_conditional_fields
     accuracy.on_change = update_accuracy
+    defense_rating.on_change = update_defense_rating
+    defense_against_rating.on_change = update_defense_against_rating
+    climb_level.on_change = update_climb_level
     for control in (
         scored_fuel, intake_floor, trench, bump, played_defense,
         had_defense, endgame_climb, broke,
