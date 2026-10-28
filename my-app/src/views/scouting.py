@@ -4,7 +4,7 @@ import flet as ft
 import httpx2 as httpx
 import socket
 
-from api import append_to_google_sheet, fetch_match, fetch_scouted_teams
+from api import append_to_google_sheet, fetch_match, fetch_scouted_teams_prioritized
 from storage import load_pending_matches, save_pending_matches
 
 
@@ -697,18 +697,19 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
                 # average_accuracy_value.value = "—"
                 # red_prediction_detail.value = blue_prediction_detail.value = "Predicted score: —"
                 team_picker.value = None
-                # Get scouted teams to prioritize unscouted ones
+                # Get scouted teams prioritized by least data to most
                 try:
-                    scouted_teams = await fetch_scouted_teams()
+                    scouted_teams = await fetch_scouted_teams_prioritized()
                 except Exception as error:
-                    scouted_teams = set()
+                    scouted_teams = []
                     match_status.value = f"Warning: Could not fetch scouting list ({error})"
                     match_status.color = ft.Colors.ORANGE_800
-                # Create list of unscouted teams first (priority), then all teams
-                unscouted_teams = [team for team in all_teams if team not in scouted_teams]
-                priority_teams = unscouted_teams + [
-                    team for team in all_teams if team in scouted_teams
-                ]
+                # Scouted teams list is already ordered least data → most data.
+                # Order all_teams by that priority: teams with less data appear first.
+                scouted_set = set(scouted_teams)
+                unscouted_teams = [team for team in all_teams if team not in scouted_set]
+                scouted_in_match = [team for team in scouted_teams if team in all_teams]
+                priority_teams = unscouted_teams + scouted_in_match
                 team_picker.options = [ft.DropdownOption(text=team) for team in priority_teams]
                 alliance_row.controls = [
                     alliance_card("RED ALLIANCE", red_teams, ft.Colors.RED_50, ft.Colors.RED_800),

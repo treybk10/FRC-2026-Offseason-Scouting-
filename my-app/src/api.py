@@ -164,8 +164,13 @@ def _google_service_account() -> tuple[str, str]:
     return info.get("token_uri", "https://oauth2.googleapis.com/token"), assertion.decode("utf-8")
 
 
-async def fetch_scouted_teams() -> set[str]:
-    """Read the Google Sheet and return team numbers that have already been scouted."""
+async def fetch_scouted_teams_prioritized() -> list[str]:
+    """Read the Google Sheet and return team numbers prioritized by least data to most.
+
+    Teams that have been scouted fewer times / with fewer fields filled in
+    appear first (highest priority). Teams with complete data appear last.
+    Returns a list of team numbers sorted by priority (least data first).
+    """
     if not GOOGLE_SHEETS_SPREADSHEET_ID or GOOGLE_SHEETS_SPREADSHEET_ID == "ADD_SPREADSHEET_ID":
         raise ValueError("Add GOOGLE_SHEETS_SPREADSHEET_ID in src/api_keys.py first.")
 
@@ -188,11 +193,40 @@ async def fetch_scouted_teams() -> set[str]:
         _raise_google_error(response)
 
     values = response.json().get("values", [])
-    scouted = set()
-    for row in values[1:]:  # skip header row
-        if len(row) > 1 and row[1]:
-            scouted.add(str(row[1]).strip())
-    return scouted
+    if not values:
+        return []
+
+    # Header row is values[0]; data starts at values[1]
+    header = values[0]
+    # Find the column index for "team" - assume it's the second column (index 1)
+    # based on the scouting form's save_match() which writes team at index 1
+    team_col_idx = None
+    for i, h in enumerate(header):
+        if h.strip().lower() == "team":
+            team_col_idx = i
+            break
+    if team_col_idx is None:
+        # Fallback: assume team is column index 1
+        team_col_idx = 1
+
+    # Count filled fields per team (excluding "N/A" and empty values)
+    team_data: dict[str, int] = {}  # team_number -> count of filled fields
+    for row in values[1:]:
+        if len(row) <= team_col_idx:
+            continue
+        team_num = str(row[team_col_idx]).strip()
+        if not team_num:
+            continue
+        # Count fields that are not "N/A" and not empty
+        filled = sum(
+            1 for cell in row if cell and str(cell).strip().lower() != "n/a"
+        )
+        # Accumulate per team (a team may have multiple match entries)
+        team_data[team_num] = team_data.get(team_num, 0) + filled
+
+    # Sort teams by fewest filled fields first (most priority)
+    sorted_teams = sorted(team_data.keys(), key=lambda t: team_data[t])
+    return sorted_teams
 
 
 async def append_to_google_sheet(
