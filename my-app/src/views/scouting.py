@@ -334,10 +334,11 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         label="How much did defense affect them?",
         min=1, max=4, value=2, divisions=3,
         active_color=RED, thumb_color=RED,
+        visible=False,
     )
     defense_team = styled_field("Team that played defense")
     defense_against_controls = ft.Column(
-        visible=False, controls=[defense_against_rating, defense_against_rating_value, defense_team]
+        visible=False, controls=[defense_against_rating, defense_team]
     )
     endgame_climb = styled_switch("Climbed in endgame?")
     climb_level_value = ft.Text("1", color=RED, weight=ft.FontWeight.BOLD)
@@ -357,8 +358,13 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     extra_notes = styled_field("Anything else to note about this match?", multiline=True, min_lines=3)
 
     # Upload feedback.
+    upload_status = ft.Text(
+        visible=False,
+        size=18,
+        weight=ft.FontWeight.BOLD,
+        color=ft.Colors.GREEN_800,
+    )
     upload_button = ft.Button(content="Save Match Scouting")
-    upload_status = ft.Text(visible=False)
     pending_upload_button = ft.OutlinedButton(content="Upload saved matches")
     pending_upload_status = ft.Text(
         "Offline matches are kept on this device until they can be uploaded.", color=MUTED
@@ -446,9 +452,9 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             scoring_controls,
             intake_group,
             inactive_group,
-            switch_tile(played_defense), switch_tile(shoot_on_move), switch_tile(trench), switch_tile(bump),
+            switch_tile(shoot_on_move), switch_tile(trench), switch_tile(bump),
             travel_path, travel_warning,
-            defense_rating_header, defense_rating,
+            switch_tile(played_defense), defense_rating_header, defense_rating,
             switch_tile(had_defense), defense_against_header, defense_against_controls,
         ],
     )
@@ -459,7 +465,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     scouting_form = ft.Column(
         visible=False,
         spacing=14,
-        controls=[auto_card, tele_card, endgame_card, upload_button, upload_status],
+        controls=[auto_card, tele_card, endgame_card, upload_status, upload_button],
     )
 
     # Page content: straightforward flow from match details to team scouting form.
@@ -510,7 +516,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         except (ValueError, TypeError):
             return 0
 
-    def answer(_field: str, value):
+    def answer(value):
         """Preserve preset and entered values; use N/A only when no value exists."""
         return "N/A" if value is None or value == "" else value
 
@@ -786,49 +792,48 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             "scouter": scouter_name.value.strip() or "N/A",
             "team": selected_team,
             "match": number(match_number.value),
-            "auto_start": answer("auto_start", auto_start.value),
-            "auto_center_intaked": answer("center_intaked", center_intaked.value)
+            "auto_start": answer(auto_start.value),
+            "auto_center_intaked": answer(center_intaked.value)
             if auto_start.value == "Center" else "N/A",
-            "auto_center_scored": answer("center_scored", center_scored.value)
+            "auto_center_scored": answer(center_scored.value)
             if auto_start.value == "Center" else "N/A",
             "neutral_passes": answer(
-                "neutral_passes",
                 max(0, min(3, number(neutral_passes.value)))
                 if (neutral_passes.value or "").strip() else None,
             ) if auto_start.value != "Center" else "N/A",
-            "auto_climb": answer("auto_climb", auto_climb.value),
-            "scored_fuel": answer("scored_fuel", scored_fuel.value),
-            "shooter": answer("shooter_type", shooter_type.value)
+            "auto_climb": answer(auto_climb.value),
+            "scored_fuel": answer(scored_fuel.value),
+            "shooter": answer(shooter_type.value)
             if scored_fuel.value else "N/A",
-            "hopper": answer("hopper_size", hopper_size.value)
+            "hopper": answer(hopper_size.value)
             if scored_fuel.value else "N/A",
-            "accuracy": answer("accuracy", round(accuracy.value))
+            "accuracy": answer(round(accuracy.value))
             if scored_fuel.value else "N/A",
-            "throughput": answer("throughput", throughput.value)
+            "throughput": answer(throughput.value)
             if scored_fuel.value else "N/A",
-            "cycle_time": answer("cycle_time", cycle_time.value)
+            "cycle_time": answer(cycle_time.value)
             if scored_fuel.value else "N/A",
             "intake": selected_checks([intake_floor, intake_outpost]),
-            "intake_rating": answer("intake_rating", intake_rating.value)
+            "intake_rating": answer(intake_rating.value)
             if intake_floor.value else "N/A",
             "inactive_actions": selected_checks(inactive_choices),
-            "shoot_on_move": answer("shoot_on_move", shoot_on_move.value),
-            "trench": answer("trench", trench.value),
-            "bump": answer("bump", bump.value),
-            "travel_path": answer("travel_path", travel_path.value)
+            "shoot_on_move": answer(shoot_on_move.value),
+            "trench": answer(trench.value),
+            "bump": answer(bump.value),
+            "travel_path": answer(travel_path.value)
             if trench.value and bump.value else "N/A",
-            "played_defense": answer("played_defense", played_defense.value),
-            "defense_rating": answer("defense_rating", int(defense_rating.value))
+            "played_defense": answer(played_defense.value),
+            "defense_rating": answer(int(defense_rating.value))
             if played_defense.value else "N/A",
-            "had_defense": answer("had_defense", had_defense.value),
-            "defense_against_rating": answer("defense_against_rating", int(defense_against_rating.value))
+            "had_defense": answer(had_defense.value),
+            "defense_against_rating": answer(int(defense_against_rating.value))
             if had_defense.value else "N/A",
             "defense_team": defense_team.value.strip() or "N/A"
             if had_defense.value else "N/A",
-            "endgame_climb": answer("endgame_climb", endgame_climb.value),
-            "climb_level": answer("climb_level", int(climb_level.value))
+            "endgame_climb": answer(endgame_climb.value),
+            "climb_level": answer(int(climb_level.value))
             if endgame_climb.value else "N/A",
-            "broke": answer("broke", broke.value),
+            "broke": answer(broke.value),
             "break_details": break_details.value.strip() or "N/A"
             if broke.value else "N/A",
             "notes": extra_notes.value.strip() or "N/A",
@@ -892,6 +897,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         defense_rating_header.visible = played_defense.value
         defense_against_controls.visible = had_defense.value
         defense_against_header.visible = had_defense.value
+        defense_against_rating.visible = had_defense.value
         climb_level.visible = endgame_climb.value
         climb_level_header.visible = endgame_climb.value
         break_details.visible = broke.value
