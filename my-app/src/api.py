@@ -164,6 +164,37 @@ def _google_service_account() -> tuple[str, str]:
     return info.get("token_uri", "https://oauth2.googleapis.com/token"), assertion.decode("utf-8")
 
 
+async def fetch_scouted_teams() -> set[str]:
+    """Read the Google Sheet and return team numbers that have already been scouted."""
+    if not GOOGLE_SHEETS_SPREADSHEET_ID or GOOGLE_SHEETS_SPREADSHEET_ID == "ADD_SPREADSHEET_ID":
+        raise ValueError("Add GOOGLE_SHEETS_SPREADSHEET_ID in src/api_keys.py first.")
+
+    token_url, assertion = _google_service_account()
+    spreadsheet_url = f"https://sheets.googleapis.com/v4/spreadsheets/{GOOGLE_SHEETS_SPREADSHEET_ID}"
+    async with httpx.AsyncClient(timeout=25) as client:
+        token_response = await client.post(
+            token_url,
+            data={
+                "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                "assertion": assertion,
+            },
+        )
+        _raise_google_error(token_response)
+        auth_headers = {"Authorization": f"Bearer {token_response.json()['access_token']}"}
+
+        target_range = GOOGLE_SHEETS_RANGE
+        read_url = f"{spreadsheet_url}/values/{quote(target_range, safe='')}"
+        response = await client.get(read_url, headers=auth_headers)
+        _raise_google_error(response)
+
+    values = response.json().get("values", [])
+    scouted = set()
+    for row in values[1:]:  # skip header row
+        if len(row) > 1 and row[1]:
+            scouted.add(str(row[1]).strip())
+    return scouted
+
+
 async def append_to_google_sheet(
     values: list,
     range_name: str | None = None,

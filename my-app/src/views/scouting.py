@@ -4,7 +4,7 @@ import flet as ft
 import httpx2 as httpx
 import socket
 
-from api import append_to_google_sheet, fetch_match
+from api import append_to_google_sheet, fetch_match, fetch_scouted_teams
 from storage import load_pending_matches, save_pending_matches
 
 
@@ -165,6 +165,10 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     )
     # Keep the team picker aligned with the left edge of the scouting form.
     team_picker_row = ft.Column(visible=False, controls=[team_picker])
+
+    # Priority teams: teams in this match that haven't been scouted yet.
+    priority_text = ft.Text(visible=False, size=16, weight=ft.FontWeight.BOLD, color=RED)
+    priority_row = ft.Column(visible=False, controls=[priority_text])
 
     # Offline mode: manual team entry field (shown when offline)
     offline_team_row = ft.Column(
@@ -502,6 +506,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
             match_status,
             alliance_row,
             # prediction_box,
+            priority_row,
             team_picker_row,
             offline_team_row,
             # result_box,
@@ -692,7 +697,19 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
                 # average_accuracy_value.value = "—"
                 # red_prediction_detail.value = blue_prediction_detail.value = "Predicted score: —"
                 team_picker.value = None
-                team_picker.options = [ft.DropdownOption(text=team) for team in all_teams]
+                # Get scouted teams to prioritize unscouted ones
+                try:
+                    scouted_teams = await fetch_scouted_teams()
+                except Exception as error:
+                    scouted_teams = set()
+                    match_status.value = f"Warning: Could not fetch scouting list ({error})"
+                    match_status.color = ft.Colors.ORANGE_800
+                # Create list of unscouted teams first (priority), then all teams
+                unscouted_teams = [team for team in all_teams if team not in scouted_teams]
+                priority_teams = unscouted_teams + [
+                    team for team in all_teams if team in scouted_teams
+                ]
+                team_picker.options = [ft.DropdownOption(text=team) for team in priority_teams]
                 alliance_row.controls = [
                     alliance_card("RED ALLIANCE", red_teams, ft.Colors.RED_50, ft.Colors.RED_800),
                     alliance_card("BLUE ALLIANCE", blue_teams, ft.Colors.BLUE_50, ft.Colors.BLUE_800),
@@ -700,6 +717,13 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
                 alliance_row.visible = True
                 team_picker.visible = True
                 team_picker_row.visible = True
+                # Show priority teams (unscouted teams in this match listed first)
+                if unscouted_teams:
+                    priority_text.value = f"Priority Teams: {', '.join(unscouted_teams)}"
+                else:
+                    priority_text.value = "No priority teams — all teams in this match have been scouted."
+                priority_text.visible = True
+                priority_row.visible = True
                 offline_team_row.visible = False
                 # prediction_box.visible = predictions_toggle.value
                 scouting_form.visible = False
@@ -714,6 +738,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
                 team_picker.value = None
                 team_picker.options = []
                 alliance_row.visible = False
+                priority_row.visible = False
                 team_picker.visible = False
                 team_picker_row.visible = False
                 # prediction_box.visible = False
