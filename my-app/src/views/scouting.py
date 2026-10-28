@@ -697,19 +697,22 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
                 # average_accuracy_value.value = "—"
                 # red_prediction_detail.value = blue_prediction_detail.value = "Predicted score: —"
                 team_picker.value = None
-                # Get scouted teams prioritized by least data to most
+                # Get scouted teams prioritized by least scouted matches
                 try:
-                    scouted_teams = await fetch_scouted_teams_prioritized()
+                    scouted_teams, team_match_counts = await fetch_scouted_teams_prioritized()
                 except Exception as error:
                     scouted_teams = []
+                    team_match_counts = {}
                     match_status.value = f"Warning: Could not fetch scouting list ({error})"
                     match_status.color = ft.Colors.ORANGE_800
-                # Scouted teams list is already ordered least data → most data.
-                # Order all_teams by that priority: teams with less data appear first.
+                # Scouted teams list is already ordered least scouted → most scouted.
+                # Order all_teams by that priority: teams with fewer scouted matches appear first.
                 scouted_set = set(scouted_teams)
                 unscouted_teams = [team for team in all_teams if team not in scouted_set]
                 scouted_in_match = [team for team in scouted_teams if team in all_teams]
-                priority_teams = unscouted_teams + scouted_in_match
+                # Sort scouted_in_match by their scouted match count (least to most)
+                scouted_in_match_sorted = sorted(scouted_in_match, key=lambda t: team_match_counts.get(t, 0))
+                priority_teams = unscouted_teams + scouted_in_match_sorted
                 team_picker.options = [ft.DropdownOption(text=team) for team in priority_teams]
                 alliance_row.controls = [
                     alliance_card("RED ALLIANCE", red_teams, ft.Colors.RED_50, ft.Colors.RED_800),
@@ -718,8 +721,21 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
                 alliance_row.visible = True
                 team_picker.visible = True
                 team_picker_row.visible = True
-                # Show priority teams (sorted: unscouted first, then scouted teams by least data)
-                priority_text.value = f"Priority Teams (least data first): {', '.join(priority_teams)}"
+                # Show priority text with team scouted match counts
+                if unscouted_teams:
+                    count_str = ", ".join([f"{t} (0 matches scouted)" for t in unscouted_teams[:5]])
+                    if len(unscouted_teams) > 5:
+                        count_str += f" + {len(unscouted_teams) - 5} more"
+                    priority_text.value = f"Priority Teams (least scouted first): {count_str}"
+                elif scouted_in_match:
+                    count_str = ", ".join(
+                        [f"{t} ({team_match_counts.get(t, 0)} matches)" for t in scouted_in_match_sorted[:5]]
+                    )
+                    if len(scouted_in_match) > 5:
+                        count_str += f" + {len(scouted_in_match) - 5} more"
+                    priority_text.value = f"Teams ordered by scouted match count (least first): {count_str}"
+                else:
+                    priority_text.value = "No teams found in scout sheet."
                 priority_text.visible = True
                 priority_row.visible = True
                 offline_team_row.visible = False

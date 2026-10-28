@@ -164,12 +164,12 @@ def _google_service_account() -> tuple[str, str]:
     return info.get("token_uri", "https://oauth2.googleapis.com/token"), assertion.decode("utf-8")
 
 
-async def fetch_scouted_teams_prioritized() -> list[str]:
-    """Read the Google Sheet and return team numbers prioritized by least data to most.
+async def fetch_scouted_teams_prioritized() -> tuple[list[str], dict[str, int]]:
+    """Read Sheet 1 column B and return teams prioritized by least matches scouted to most.
 
-    Teams that have been scouted fewer times / with fewer fields filled in
-    appear first (highest priority). Teams with complete data appear last.
-    Returns a list of team numbers sorted by priority (least data first).
+    Returns:
+        (sorted_team_numbers, match_counts) — teams with fewest scouted matches first,
+        plus a dict mapping team number -> number of match rows found for that team.
     """
     if not GOOGLE_SHEETS_SPREADSHEET_ID or GOOGLE_SHEETS_SPREADSHEET_ID == "ADD_SPREADSHEET_ID":
         raise ValueError("Add GOOGLE_SHEETS_SPREADSHEET_ID in src/api_keys.py first.")
@@ -187,46 +187,28 @@ async def fetch_scouted_teams_prioritized() -> list[str]:
         _raise_google_error(token_response)
         auth_headers = {"Authorization": f"Bearer {token_response.json()['access_token']}"}
 
-        target_range = GOOGLE_SHEETS_RANGE
-        read_url = f"{spreadsheet_url}/values/{quote(target_range, safe='')}"
+        # Read all of Sheet 1 so we can scan every row for team entries in column B
+        read_url = f"{spreadsheet_url}/values/Sheet1!A:Z"
         response = await client.get(read_url, headers=auth_headers)
         _raise_google_error(response)
 
     values = response.json().get("values", [])
-    if not values:
-        return []
+    if not values or len(values) < 2:
+        return [], {}
 
-    # Header row is values[0]; data starts at values[1]
-    header = values[0]
-    # Find the column index for "team" - assume it's the second column (index 1)
-    # based on the scouting form's save_match() which writes team at index 1
-    team_col_idx = None
-    for i, h in enumerate(header):
-        if h.strip().lower() == "team":
-            team_col_idx = i
-            break
-    if team_col_idx is None:
-        # Fallback: assume team is column index 1
-        team_col_idx = 1
-
-    # Count filled fields per team (excluding "N/A" and empty values)
-    team_data: dict[str, int] = {}  # team_number -> count of filled fields
+    # Column B is index 1 (0-indexed). Skip header row.
+    team_match_counts: dict[str, int] = {}
     for row in values[1:]:
-        if len(row) <= team_col_idx:
+        if len(row) <= 1:
             continue
-        team_num = str(row[team_col_idx]).strip()
+        team_num = str(row[1]).strip()
         if not team_num:
             continue
-        # Count fields that are not "N/A" and not empty
-        filled = sum(
-            1 for cell in row if cell and str(cell).strip().lower() != "n/a"
-        )
-        # Accumulate per team (a team may have multiple match entries)
-        team_data[team_num] = team_data.get(team_num, 0) + filled
+        team_match_counts[team_num] = team_match_counts.get(team_num, 0) + 1
 
-    # Sort teams by fewest filled fields first (most priority)
-    sorted_teams = sorted(team_data.keys(), key=lambda t: team_data[t])
-    return sorted_teams
+    # Sort teams by fewest matches scouted first (highest priority)
+    sorted_teams = sorted(team_match_counts.keys(), key=lambda t: team_match_counts[t])
+    return sorted_teams, team_match_counts
 
 
 async def append_to_google_sheet(
