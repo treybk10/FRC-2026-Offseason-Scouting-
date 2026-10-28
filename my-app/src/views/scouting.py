@@ -721,19 +721,11 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
                 alliance_row.visible = True
                 team_picker.visible = True
                 team_picker_row.visible = True
-                # Show priority text with team scouted match counts
-                if unscouted_teams:
-                    count_str = ", ".join([f"{t} (0 matches scouted)" for t in unscouted_teams[:5]])
-                    if len(unscouted_teams) > 5:
-                        count_str += f" + {len(unscouted_teams) - 5} more"
-                    priority_text.value = f"Priority Teams (least scouted first): {count_str}"
-                elif scouted_in_match:
-                    count_str = ", ".join(
-                        [f"{t} ({team_match_counts.get(t, 0)} matches)" for t in scouted_in_match_sorted[:5]]
-                    )
-                    if len(scouted_in_match) > 5:
-                        count_str += f" + {len(scouted_in_match) - 5} more"
-                    priority_text.value = f"Teams ordered by scouted match count (least first): {count_str}"
+                # Show priority text with team list (sorted least scouted first)
+                if priority_teams:
+                    # Show all teams in order
+                    team_str = ", ".join(priority_teams)
+                    priority_text.value = f"Priority Teams (least scouted first): {team_str}"
                 else:
                     priority_text.value = "No teams found in scout sheet."
                 priority_text.visible = True
