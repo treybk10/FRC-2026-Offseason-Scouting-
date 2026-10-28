@@ -330,7 +330,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         label="Defense effectiveness",
         min=1, max=4, value=2, divisions=3,
         active_color=RED, thumb_color=RED,
-        visible=False,
+        visible=played_defense.value,
     )
     had_defense = styled_switch("Did another robot play defense against them?")
     defense_against_rating_value = ft.Text("A little", color=RED, weight=ft.FontWeight.BOLD)
@@ -345,7 +345,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         label="How much did defense affect them?",
         min=1, max=4, value=2, divisions=3,
         active_color=RED, thumb_color=RED,
-        visible=False,
+        visible=had_defense.value,
     )
     defense_team = styled_field("Team that played defense")
     defense_against_controls = ft.Column(
@@ -965,13 +965,13 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
     def update_defense_rating(_e):
         rating = round(_e.control.value)
         labels = ["Hurt more than helped", "It's okay", "Great!", "Amazing!"]
-        defense_rating_value.value = labels[rating - 1]
+        defense_rating_value.value = f"{labels[rating - 1]} ({rating}/4)"
         page.update()
 
     def update_defense_against_rating(_e):
         rating = round(_e.control.value)
         labels = ["Wait, what defense?", "A little", "Significantly", "Cost them the match"]
-        defense_against_rating_value.value = labels[rating - 1]
+        defense_against_rating_value.value = f"{labels[rating - 1]} ({rating}/4)"
         page.update()
 
     def update_climb_level(_e):
