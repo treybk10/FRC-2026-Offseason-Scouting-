@@ -725,7 +725,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
                 if priority_teams:
                     # Show all teams in order
                     team_str = ", ".join(priority_teams)
-                    priority_text.value = f"Priority Teams (least scouted first): {team_str}"
+                    priority_text.value = f"Priority teams (most important first): {team_str}"
                 else:
                     priority_text.value = "No teams found in scout sheet."
                 priority_text.visible = True
