@@ -718,11 +718,8 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
                 alliance_row.visible = True
                 team_picker.visible = True
                 team_picker_row.visible = True
-                # Show priority teams (unscouted teams in this match listed first)
-                if unscouted_teams:
-                    priority_text.value = f"Priority Teams: {', '.join(unscouted_teams)}"
-                else:
-                    priority_text.value = "No priority teams — all teams in this match have been scouted."
+                # Show priority teams (sorted: unscouted first, then scouted teams by least data)
+                priority_text.value = f"Priority Teams (least data first): {', '.join(priority_teams)}"
                 priority_text.visible = True
                 priority_row.visible = True
                 offline_team_row.visible = False
