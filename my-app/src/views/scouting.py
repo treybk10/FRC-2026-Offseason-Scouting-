@@ -168,7 +168,14 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
 
     # Priority teams: teams in this match that haven't been scouted yet.
     priority_text = ft.Text(visible=False, size=16, weight=ft.FontWeight.BOLD, color=RED)
-    priority_row = ft.Column(visible=False, controls=[priority_text])
+    priority_subtext = ft.Text(
+        "The priority sorts by who has the least amount of data. "
+        "You don't have to choose your teams based on this list.",
+        visible=False,
+        size=12,
+        color=ft.Colors.ORANGE_800,
+    )
+    priority_row = ft.Column(visible=False, controls=[priority_text, priority_subtext], spacing=4)
 
     # Offline mode: manual team entry field (shown when offline)
     offline_team_row = ft.Column(
@@ -729,6 +736,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
                 else:
                     priority_text.value = "No teams found in scout sheet."
                 priority_text.visible = True
+                priority_subtext.visible = True
                 priority_row.visible = True
                 offline_team_row.visible = False
                 # prediction_box.visible = predictions_toggle.value
