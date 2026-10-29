@@ -66,6 +66,9 @@ def build_statbotics_view(page: ft.Page) -> ft.Control:
     # raw_data = ft.Text(selectable=True, visible=False, size=12)
     # video_link = ft.TextButton(content="Open match video", visible=False)
 
+    # Event key (needed for schedules)
+    event_key = ft.TextField(label="Event key", value="2026mibg", expand=True)
+
     schedule_team = ft.TextField(label="Team number", keyboard_type=ft.KeyboardType.NUMBER, expand=True)
     schedule_status = ft.Text()
     schedule_results = ft.Column(spacing=10)
