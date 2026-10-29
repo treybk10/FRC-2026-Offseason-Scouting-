@@ -14,6 +14,8 @@ PIT_HEADERS = [
     "Climber",
     "Drivetrain",
     "Auto Start Locations",
+    "Drive Under Trench",
+    "Drive Over Bump",
     "Fun Features",
     "Additional Notes",
 ]
@@ -119,6 +121,14 @@ def build_pit_scouting_view(page: ft.Page) -> ft.Control:
             ),
         },
     )
+    drive_under_trench = ft.Switch(
+        label="Can drive under trench?",
+        active_color=RED,
+    )
+    drive_over_bump = ft.Switch(
+        label="Can drive over bump?",
+        active_color=RED,
+    )
     auto_locations = [
         ft.Checkbox(label=location, active_color=RED)
         for location in ["Left", "Center", "Right"]
@@ -169,6 +179,8 @@ def build_pit_scouting_view(page: ft.Page) -> ft.Control:
                         ],
                     ),
                 ),
+                drive_under_trench,
+                drive_over_bump,
                 fun_features,
                 additional_notes,
                 save_button,
@@ -195,6 +207,8 @@ def build_pit_scouting_view(page: ft.Page) -> ft.Control:
             climber.value or "N/A",
             drivetrain.value or "N/A",
             ", ".join(locations) or "N/A",
+            "Yes" if drive_under_trench.value else "No",
+            "Yes" if drive_over_bump.value else "No",
             fun_features.value.strip() or "N/A",
             additional_notes.value.strip() or "N/A",
         ]
