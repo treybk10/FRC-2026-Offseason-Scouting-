@@ -52,88 +52,90 @@ def match_card(match: dict, label: str) -> ft.Control:
 
 def build_statbotics_view(page: ft.Page) -> ft.Control:
     """Build three simple panels: match prediction, schedules, and team metrics."""
-    event_key = ft.TextField(label="Event key", value="2026mibg", expand=True)
-    match_number = ft.TextField(label="Match number", value="1", keyboard_type=ft.KeyboardType.NUMBER)
-    match_type = ft.Dropdown(
-        label="Match type",
-        value="Qualification",
-        options=[ft.DropdownOption(text=name) for name in ["Qualification", "Semifinal", "Final"]],
-    )
-    match_status = ft.Text()
-    prediction_results = ft.Column(spacing=10)
-    raw_toggle = ft.TextButton(content="Show raw match response")
-    raw_data = ft.Text(selectable=True, visible=False, size=12)
-    video_link = ft.TextButton(content="Open match video", visible=False)
+    # Match prediction fields (commented out for now)
+    # event_key = ft.TextField(label="Event key", value="2026mibg", expand=True)
+    # match_number = ft.TextField(label="Match number", value="1", keyboard_type=ft.KeyboardType.NUMBER)
+    # match_type = ft.Dropdown(
+    #     label="Match type",
+    #     value="Qualification",
+    #     options=[ft.DropdownOption(text=name) for name in ["Qualification", "Semifinal", "Final"]],
+    # )
+    # match_status = ft.Text()
+    # prediction_results = ft.Column(spacing=10)
+    # raw_toggle = ft.TextButton(content="Show raw match response")
+    # raw_data = ft.Text(selectable=True, visible=False, size=12)
+    # video_link = ft.TextButton(content="Open match video", visible=False)
 
     schedule_team = ft.TextField(label="Team number", keyboard_type=ft.KeyboardType.NUMBER, expand=True)
     schedule_status = ft.Text()
     schedule_results = ft.Column(spacing=10)
-    team_number = ft.TextField(label="Team number", keyboard_type=ft.KeyboardType.NUMBER, expand=True)
-    team_status = ft.Text()
-    team_results = ft.Column(spacing=8)
+    # Team information fields (commented out for now)
+    # team_number = ft.TextField(label="Team number", keyboard_type=ft.KeyboardType.NUMBER, expand=True)
+    # team_status = ft.Text()
+    # team_results = ft.Column(spacing=8)
 
-    async def load_prediction():
-        event = (event_key.value or "").strip()
-        try:
-            number = int(match_number.value or "0")
-        except ValueError:
-            number = 0
-        if not event or number < 1:
-            match_status.value = "Enter an event key and match number of at least 1."
-            match_status.color = RED
-            page.update()
-            return
-        if match_type.value == "Final":
-            key = f"{event}_f1m{number}"
-        elif match_type.value == "Semifinal":
-            key = f"{event}_sf{number}m1"
-        else:
-            key = f"{event}_qm{number}"
-        match_status.value = f"Loading Statbotics prediction for {key}…"
-        match_status.color = ft.Colors.GREY_700
-        page.update()
-        try:
-            data = await fetch_statbotics(f"match/{key}")
-            winner = str(data.get("predicted_winner") or "Unknown").upper()
-            red_probability = float(data.get("red_win_prob", 0.5))
-            probability = red_probability if winner == "RED" else 1 - red_probability if winner == "BLUE" else 0.5
-            prediction_results.controls = [
-                ft.Row(
-                    controls=[
-                        ft.Container(
-                            expand=True, padding=14, bgcolor=ft.Colors.GREY_100,
-                            border_radius=10,
-                            content=ft.Column(controls=[
-                                ft.Text("Predicted winner", color=ft.Colors.GREY_700),
-                                ft.Text(winner, size=22, weight=ft.FontWeight.BOLD, color=RED),
-                            ]),
-                        ),
-                        ft.Container(
-                            expand=True, padding=14, bgcolor=ft.Colors.GREY_100,
-                            border_radius=10,
-                            content=ft.Column(controls=[
-                                ft.Text("Win probability", color=ft.Colors.GREY_700),
-                                ft.Text(f"{probability * 100:.1f}%", size=22, weight=ft.FontWeight.BOLD),
-                            ]),
-                        ),
-                    ]
-                ),
-                alliance_card("RED ALLIANCE", [data.get(f"red_{i}") for i in range(1, 4)], ft.Colors.RED_50, ft.Colors.RED_800),
-                alliance_card("BLUE ALLIANCE", [data.get(f"blue_{i}") for i in range(1, 4)], ft.Colors.BLUE_50, ft.Colors.BLUE_800),
-            ]
-            raw_data.value = json.dumps(data, indent=2)
-            raw_toggle.visible = True
-            video = data.get("video")
-            video_link.visible = bool(video)
-            if video:
-                video_link.url = f"https://www.youtube.com/watch?v={video}"
-            match_status.value = "Prediction loaded."
-            match_status.color = ft.Colors.GREEN_800
-        except (ValueError, httpx.HTTPError) as error:
-            prediction_results.controls.clear()
-            match_status.value = f"Could not load prediction: {error}"
-            match_status.color = RED
-        page.update()
+    # async def load_prediction():
+    #     event = (event_key.value or "").strip()
+    #     try:
+    #         number = int(match_number.value or "0")
+    #     except ValueError:
+    #         number = 0
+    #     if not event or number < 1:
+    #         match_status.value = "Enter an event key and match number of at least 1."
+    #         match_status.color = RED
+    #         page.update()
+    #         return
+    #     if match_type.value == "Final":
+    #         key = f"{event}_f1m{number}"
+    #     elif match_type.value == "Semifinal":
+    #         key = f"{event}_sf{number}m1"
+    #     else:
+    #         key = f"{event}_qm{number}"
+    #     match_status.value = f"Loading Statbotics prediction for {key}…"
+    #     match_status.color = ft.Colors.GREY_700
+    #     page.update()
+    #     try:
+    #         data = await fetch_statbotics(f"match/{key}")
+    #         winner = str(data.get("predicted_winner") or "Unknown").upper()
+    #         red_probability = float(data.get("red_win_prob", 0.5))
+    #         probability = red_probability if winner == "RED" else 1 - red_probability if winner == "BLUE" else 0.5
+    #         prediction_results.controls = [
+    #             ft.Row(
+    #                 controls=[
+    #                     ft.Container(
+    #                         expand=True, padding=14, bgcolor=ft.Colors.GREY_100,
+    #                         border_radius=10,
+    #                         content=ft.Column(controls=[
+    #                             ft.Text("Predicted winner", color=ft.Colors.GREY_700),
+    #                             ft.Text(winner, size=22, weight=ft.FontWeight.BOLD, color=RED),
+    #                         ]),
+    #                     ),
+    #                     ft.Container(
+    #                         expand=True, padding=14, bgcolor=ft.Colors.GREY_100,
+    #                         border_radius=10,
+    #                         content=ft.Column(controls=[
+    #                             ft.Text("Win probability", color=ft.Colors.GREY_700),
+    #                             ft.Text(f"{probability * 100:.1f}%", size=22, weight=ft.FontWeight.BOLD),
+    #                         ]),
+    #                     ),
+    #                 ]
+    #             ),
+    #             alliance_card("RED ALLIANCE", [data.get(f"red_{i}") for i in range(1, 4)], ft.Colors.RED_50, ft.Colors.RED_800),
+    #             alliance_card("BLUE ALLIANCE", [data.get(f"blue_{i}") for i in range(1, 4)], ft.Colors.BLUE_50, ft.Colors.BLUE_800),
+    #         ]
+    #         raw_data.value = json.dumps(data, indent=2)
+    #         raw_toggle.visible = True
+    #         video = data.get("video")
+    #         video_link.visible = bool(video)
+    #         if video:
+    #             video_link.url = f"https://www.youtube.com/watch?v={video}"
+    #         match_status.value = "Prediction loaded."
+    #         match_status.color = ft.Colors.GREEN_800
+    #     except (ValueError, httpx.HTTPError) as error:
+    #         prediction_results.controls.clear()
+    #         match_status.value = f"Could not load prediction: {error}"
+    #         match_status.color = RED
+    #     page.update()
 
     async def load_schedule(team_search: bool):
         event = (event_key.value or "").strip()
@@ -171,55 +173,16 @@ def build_statbotics_view(page: ft.Page) -> ft.Control:
             schedule_status.color = RED
         page.update()
 
-    # Team information loading function (commented out for now)
-    # async def load_team():
-    #     team = (team_number.value or "").strip()
-    #     if not team.isdigit():
-    #         team_status.value = "Enter a numeric team number."
-    #         team_status.color = RED
-    #         page.update()
-    #         return
-    #     team_status.value = "Loading team information…"
-    #     team_status.color = ft.Colors.GREY_700
-    #     page.update()
-    #     try:
-    #         data = await fetch_statbotics(f"team/{team}")
-    #         norm_epa = data.get("norm_epa", {})
-    #         record = data.get("record", {})
-    #         team_results.controls = [
-    #             ft.Text(str(data.get("name", f"Team {team}")), size=20, weight=ft.FontWeight.BOLD),
-    #             ft.Text(f"Current EPA: {norm_epa.get('current', '—')}"),
-    #             ft.Text(f"Win rate: {record.get('winrate', '—')}"),
-    #             ft.Text(f"Location: {data.get('state', '—')}, {data.get('country', '—')}"),
-    #             ft.Text(f"Rookie year: {data.get('rookie_year', '—')}"),
-    #         ]
-    #         team_status.value = "Team information loaded."
-    #         team_status.color = ft.Colors.GREEN_800
-    #     except (ValueError, httpx.HTTPError) as error:
-    #         team_results.controls.clear()
-    #         team_status.value = f"Could not load team information: {error}"
-    #         team_status.color = RED
-    #     page.update()
-
     async def load_team_schedule():
         await load_schedule(True)
 
     async def load_event_schedule():
         await load_schedule(False)
 
-    prediction_button = ft.Button(content="Find Match Prediction", on_click=load_prediction)
     schedule_button = ft.Button(content="Find Team Matches", on_click=load_team_schedule)
     event_schedule_button = ft.Button(content="Load Event Schedule", on_click=load_event_schedule)
-    # team_button = ft.Button(content="Search Team", on_click=load_team)
-    for button in [prediction_button, schedule_button, event_schedule_button]:
+    for button in [schedule_button, event_schedule_button]:
         button.style = ft.ButtonStyle(bgcolor=RED, color=ft.Colors.WHITE)
-
-    raw_toggle.on_click = lambda: toggle_raw()
-
-    def toggle_raw():
-        raw_data.visible = not raw_data.visible
-        raw_toggle.content = "Hide raw match response" if raw_data.visible else "Show raw match response"
-        page.update()
 
     return ft.Column(
         spacing=14,
@@ -227,19 +190,20 @@ def build_statbotics_view(page: ft.Page) -> ft.Control:
         controls=[
             ft.Text("Statbotics & Schedules", size=24, weight=ft.FontWeight.BOLD, color=RED),
             ft.Text(
-                "Explore predictions, event schedules, and team performance. "
+                "Explore event schedules, and team performance. "
                 "If Statbotics is temporarily unavailable, the status below will show the request error."
             ),
-            ft.Container(
-                padding=16, bgcolor=ft.Colors.WHITE, border=ft.Border.all(1, ft.Colors.GREY_300),
-                border_radius=12,
-                content=ft.Column(spacing=10, controls=[
-                    ft.Text("Match prediction", size=18, weight=ft.FontWeight.BOLD),
-                    event_key,
-                    ft.Row(controls=[match_type, match_number]),
-                    prediction_button, match_status, prediction_results, video_link, raw_toggle, raw_data,
-                ]),
-            ),
+            # Match predictions section (commented out for now)
+            # ft.Container(
+            #     padding=16, bgcolor=ft.Colors.WHITE, border=ft.Border.all(1, ft.Colors.GREY_300),
+            #     border_radius=12,
+            #     content=ft.Column(spacing=10, controls=[
+            #         ft.Text("Match prediction", size=18, weight=ft.FontWeight.BOLD),
+            #         event_key,
+            #         ft.Row(controls=[match_type, match_number]),
+            #         prediction_button, match_status, prediction_results, video_link, raw_toggle, raw_data,
+            #     ]),
+            # ),
             ft.Container(
                 padding=16, bgcolor=ft.Colors.WHITE, border=ft.Border.all(1, ft.Colors.GREY_300),
                 border_radius=12,
