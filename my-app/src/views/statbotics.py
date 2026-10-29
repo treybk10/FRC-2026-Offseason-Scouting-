@@ -171,34 +171,35 @@ def build_statbotics_view(page: ft.Page) -> ft.Control:
             schedule_status.color = RED
         page.update()
 
-    async def load_team():
-        team = (team_number.value or "").strip()
-        if not team.isdigit():
-            team_status.value = "Enter a numeric team number."
-            team_status.color = RED
-            page.update()
-            return
-        team_status.value = "Loading team information…"
-        team_status.color = ft.Colors.GREY_700
-        page.update()
-        try:
-            data = await fetch_statbotics(f"team/{team}")
-            norm_epa = data.get("norm_epa", {})
-            record = data.get("record", {})
-            team_results.controls = [
-                ft.Text(str(data.get("name", f"Team {team}")), size=20, weight=ft.FontWeight.BOLD),
-                ft.Text(f"Current EPA: {norm_epa.get('current', '—')}"),
-                ft.Text(f"Win rate: {record.get('winrate', '—')}"),
-                ft.Text(f"Location: {data.get('state', '—')}, {data.get('country', '—')}"),
-                ft.Text(f"Rookie year: {data.get('rookie_year', '—')}"),
-            ]
-            team_status.value = "Team information loaded."
-            team_status.color = ft.Colors.GREEN_800
-        except (ValueError, httpx.HTTPError) as error:
-            team_results.controls.clear()
-            team_status.value = f"Could not load team information: {error}"
-            team_status.color = RED
-        page.update()
+    # Team information loading function (commented out for now)
+    # async def load_team():
+    #     team = (team_number.value or "").strip()
+    #     if not team.isdigit():
+    #         team_status.value = "Enter a numeric team number."
+    #         team_status.color = RED
+    #         page.update()
+    #         return
+    #     team_status.value = "Loading team information…"
+    #     team_status.color = ft.Colors.GREY_700
+    #     page.update()
+    #     try:
+    #         data = await fetch_statbotics(f"team/{team}")
+    #         norm_epa = data.get("norm_epa", {})
+    #         record = data.get("record", {})
+    #         team_results.controls = [
+    #             ft.Text(str(data.get("name", f"Team {team}")), size=20, weight=ft.FontWeight.BOLD),
+    #             ft.Text(f"Current EPA: {norm_epa.get('current', '—')}"),
+    #             ft.Text(f"Win rate: {record.get('winrate', '—')}"),
+    #             ft.Text(f"Location: {data.get('state', '—')}, {data.get('country', '—')}"),
+    #             ft.Text(f"Rookie year: {data.get('rookie_year', '—')}"),
+    #         ]
+    #         team_status.value = "Team information loaded."
+    #         team_status.color = ft.Colors.GREEN_800
+    #     except (ValueError, httpx.HTTPError) as error:
+    #         team_results.controls.clear()
+    #         team_status.value = f"Could not load team information: {error}"
+    #         team_status.color = RED
+    #     page.update()
 
     async def load_team_schedule():
         await load_schedule(True)
@@ -209,8 +210,8 @@ def build_statbotics_view(page: ft.Page) -> ft.Control:
     prediction_button = ft.Button(content="Find Match Prediction", on_click=load_prediction)
     schedule_button = ft.Button(content="Find Team Matches", on_click=load_team_schedule)
     event_schedule_button = ft.Button(content="Load Event Schedule", on_click=load_event_schedule)
-    team_button = ft.Button(content="Search Team", on_click=load_team)
-    for button in [prediction_button, schedule_button, event_schedule_button, team_button]:
+    # team_button = ft.Button(content="Search Team", on_click=load_team)
+    for button in [prediction_button, schedule_button, event_schedule_button]:
         button.style = ft.ButtonStyle(bgcolor=RED, color=ft.Colors.WHITE)
 
     raw_toggle.on_click = lambda: toggle_raw()
@@ -249,15 +250,16 @@ def build_statbotics_view(page: ft.Page) -> ft.Control:
                     schedule_status, schedule_results,
                 ]),
             ),
-            ft.Container(
-                padding=16, bgcolor=ft.Colors.WHITE, border=ft.Border.all(1, ft.Colors.GREY_300),
-                border_radius=12,
-                content=ft.Column(spacing=10, controls=[
-                    ft.Text("Team information", size=18, weight=ft.FontWeight.BOLD),
-                    ft.Row(controls=[team_number, team_button]),
-                    team_status, team_results,
-                ]),
-            ),
+            # Team information panel (commented out for now)
+            # ft.Container(
+            #     padding=16, bgcolor=ft.Colors.WHITE, border=ft.Border.all(1, ft.Colors.GREY_300),
+            #     border_radius=12,
+            #     content=ft.Column(spacing=10, controls=[
+            #         ft.Text("Team information", size=18, weight=ft.FontWeight.BOLD),
+            #         ft.Row(controls=[team_number, team_button]),
+            #         team_status, team_results,
+            #     ]),
+            # ),
         ],
     )
 
