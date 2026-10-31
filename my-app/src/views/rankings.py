@@ -52,7 +52,7 @@ async def _load(event_field: ft.TextField, status: ft.Text, results: ft.Column, 
 
 def build_rankings_view(page: ft.Page) -> ft.Control:
     """Create the event input and dynamic ranking results."""
-    event_field = ft.TextField(label="Event key", value="2026mibg", expand=True)
+    event_field = ft.TextField(label="Event key", value="2026mimid1", expand=True)
     status = ft.Text()
     results = ft.Column(spacing=8)
     load_button = ft.Button(content="Load Rankings")

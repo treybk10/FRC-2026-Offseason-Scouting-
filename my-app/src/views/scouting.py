@@ -149,7 +149,7 @@ def build_scouting_view(page: ft.Page) -> ft.Control:
         "syncing_queue": False,
     }
     # Match identification and alliance selection.
-    event_key = styled_field("Event key", value="2026mibg", hint_text="Example: 2026mibg")
+    event_key = styled_field("Event key", value="2026mimid1", hint_text="Example: 2026mimid1")
     scouter_name = styled_field("Scouter name", hint_text="Your name")
     match_number = styled_field(
         "Qualification match number", value="1", keyboard_type=ft.KeyboardType.NUMBER

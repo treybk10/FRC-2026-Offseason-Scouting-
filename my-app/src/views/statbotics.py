@@ -53,7 +53,7 @@ def match_card(match: dict, label: str) -> ft.Control:
 def build_statbotics_view(page: ft.Page) -> ft.Control:
     """Build three simple panels: match prediction, schedules, and team metrics."""
     # Match prediction fields (commented out for now)
-    # event_key = ft.TextField(label="Event key", value="2026mibg", expand=True)
+    # event_key = ft.TextField(label="Event key", value="2026mimid1", expand=True)
     # match_number = ft.TextField(label="Match number", value="1", keyboard_type=ft.KeyboardType.NUMBER)
     # match_type = ft.Dropdown(
     #     label="Match type",
@@ -67,7 +67,7 @@ def build_statbotics_view(page: ft.Page) -> ft.Control:
     # video_link = ft.TextButton(content="Open match video", visible=False)
 
     # Event key (needed for schedules)
-    event_key = ft.TextField(label="Event key", value="2026mibg", expand=True)
+    event_key = ft.TextField(label="Event key", value="2026mimid1", expand=True)
 
     schedule_team = ft.TextField(label="Team number", keyboard_type=ft.KeyboardType.NUMBER, expand=True)
     schedule_status = ft.Text()
